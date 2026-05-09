@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, IsArray } from 'class-validator';
 
 export enum ProjectTypeDto {
   integration = 'integration',
@@ -35,4 +35,14 @@ export class CreateProjectDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  salesMemberIds?: number[];
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  participantMemberIds?: number[];
 }

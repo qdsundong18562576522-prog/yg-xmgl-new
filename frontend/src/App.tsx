@@ -7,6 +7,11 @@ import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/dashboard';
 import UsersPage from './pages/users';
 import ProjectsPage from './pages/projects';
+import MaterialsPage from './pages/materials';
+import PurchaseRequestsPage from './pages/purchases/PurchaseRequests';
+import InquiryOrdersPage from './pages/purchases/InquiryOrders';
+import PurchaseConfirmsPage from './pages/purchases/PurchaseConfirms';
+import DeliveryNoticesPage from './pages/purchases/DeliveryNotices';
 import { useAuthStore } from './stores/authStore';
 
 const queryClient = new QueryClient();
@@ -35,6 +40,11 @@ export default function App() {
               <Route path="/" element={<PrivateRoute><MainLayout /></PrivateRoute>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
+                <Route path="materials" element={<MaterialsPage />} />
+                <Route path="purchases/requests" element={<PurchaseRequestsPage />} />
+                <Route path="purchases/inquiries" element={<InquiryOrdersPage />} />
+                <Route path="purchases/confirms" element={<PurchaseConfirmsPage />} />
+                <Route path="purchases/delivery" element={<DeliveryNoticesPage />} />
                 <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
               </Route>
             </Routes>

@@ -1,5 +1,12 @@
 import request from './request';
 
+export interface ProjectMember {
+  id: number;
+  userId: number;
+  role: 'sales' | 'participant';
+  user: { id: number; displayName: string; role: string };
+}
+
 export interface Project {
   id: number;
   code: string;
@@ -17,6 +24,7 @@ export interface Project {
   createdAt: string;
   sales: { id: number; displayName: string };
   projectManager: { id: number; displayName: string };
+  members: ProjectMember[];
 }
 
 export interface CreateProjectData {
@@ -29,6 +37,8 @@ export interface CreateProjectData {
   planStartDate: string;
   planEndDate: string;
   remarks?: string;
+  salesMemberIds?: number[];
+  participantMemberIds?: number[];
 }
 
 export const projectsApi = {
@@ -39,4 +49,5 @@ export const projectsApi = {
   submit: (id: number) => request.post<any, { code: number; data: Project }>(`/projects/${id}/submit`),
   approve: (id: number) => request.post<any, { code: number; data: Project }>(`/projects/${id}/approve`),
   reject: (id: number, comment?: string) => request.post<any, { code: number; data: Project }>(`/projects/${id}/reject`, { comment }),
+  delete: (id: number) => request.delete<any, { code: number; data: { id: number; deleted: boolean } }>(`/projects/${id}`),
 };

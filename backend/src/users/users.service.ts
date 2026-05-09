@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -62,5 +62,13 @@ export class UsersService {
         role: true, department: true, phone: true, isActive: true, createdAt: true,
       },
     });
+  }
+
+  async delete(id: number) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('用户不存在');
+    if (user.role === 'admin') throw new BadRequestException('不能删除管理员账号');
+    await this.prisma.user.delete({ where: { id } });
+    return { id, deleted: true };
   }
 }

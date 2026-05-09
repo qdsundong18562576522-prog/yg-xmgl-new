@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Button, Typography } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Button } from 'antd';
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -13,6 +13,10 @@ import {
   MenuUnfoldOutlined,
   UserOutlined,
   LogoutOutlined,
+  FormOutlined,
+  FileSearchOutlined,
+  CheckCircleOutlined,
+  CarryOutOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -22,7 +26,16 @@ const { Header, Sider, Content } = Layout;
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '工作台' },
   { key: '/projects', icon: <ProjectOutlined />, label: '项目管理' },
-  { key: '/purchases', icon: <ShoppingCartOutlined />, label: '采购管理' },
+  {
+    key: 'purchases', icon: <ShoppingCartOutlined />, label: '采购管理',
+    children: [
+      { key: '/purchases/requests', icon: <FormOutlined />, label: '采购申请' },
+      { key: '/purchases/inquiries', icon: <FileSearchOutlined />, label: '采购询价' },
+      { key: '/purchases/confirms', icon: <CheckCircleOutlined />, label: '采购确认' },
+      { key: '/purchases/delivery', icon: <CarryOutOutlined />, label: '供货通知' },
+    ],
+  },
+  { key: '/materials', icon: <DatabaseOutlined />, label: '材料设备库' },
   { key: '/inventory', icon: <DatabaseOutlined />, label: '库存管理' },
   { key: '/expenses', icon: <DollarOutlined />, label: '费用报销' },
   { key: '/contracts', icon: <FileTextOutlined />, label: '合同签证' },
@@ -36,6 +49,12 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
+
+  const isAdmin = user?.role === 'admin';
+  const visibleItems = menuItems.filter((item) => {
+    if (!isAdmin && (item.key === '/users' || item.key === '/settings')) return false;
+    return true;
+  });
 
   const handleLogout = () => {
     logout();
@@ -60,7 +79,7 @@ export default function MainLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          items={visibleItems}
           onClick={({ key }) => navigate(key)}
         />
       </Sider>

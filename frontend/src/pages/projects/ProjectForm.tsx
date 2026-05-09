@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, InputNumber, message } from 'antd';
 import { projectsApi } from '../../api/projects';
-import type { CreateProjectData, Project } from '../../api/projects';
+import type { Project } from '../../api/projects';
 import request from '../../api/request';
 
 interface Props {
@@ -19,19 +19,39 @@ const typeOptions = [
 export default function ProjectForm({ open, onClose, onSuccess, editProject }: Props) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [pmOptions, setPmOptions] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const isEdit = !!editProject;
+
+  const salesOptions = allUsers
+    .filter((u: any) => ['sales', 'admin'].includes(u.role))
+    .map((u: any) => ({ value: u.id, label: `${u.displayName} (${u.department || ''})` }));
+
+  const participantOptions = allUsers
+    .map((u: any) => ({ value: u.id, label: `${u.displayName} (${u.department || ''})` }));
+
+  const pmOptions = allUsers
+    .filter((u: any) => ['pm', 'engineer', 'admin'].includes(u.role))
+    .map((u: any) => ({ value: u.id, label: `${u.displayName}${u.department ? ` (${u.department})` : ''}` }));
 
   useEffect(() => {
     if (open) {
       request.get('/users').then((res: any) => {
-        const users = res.data || [];
-        setPmOptions(users.filter((u: any) => ['pm', 'engineer', 'admin'].includes(u.role)));
+        setAllUsers(res.data || []);
       });
 
       if (editProject) {
+        // Extract member IDs from the members array
+        const salesMemberIds = editProject.members
+          ?.filter((m) => m.role === 'sales')
+          .map((m) => m.userId) || [];
+        const participantMemberIds = editProject.members
+          ?.filter((m) => m.role === 'participant')
+          .map((m) => m.userId) || [];
+
         form.setFieldsValue({
           ...editProject,
+          salesMemberIds,
+          participantMemberIds,
         });
       } else {
         form.resetFields();
@@ -42,8 +62,18 @@ export default function ProjectForm({ open, onClose, onSuccess, editProject }: P
   const handleFinish = async (values: any) => {
     setLoading(true);
     try {
-      const data: CreateProjectData = {
-        ...values,
+      const data: any = {
+        name: values.name,
+        type: values.type,
+        description: values.description,
+        contractAmount: values.contractAmount,
+        expectedProfitRate: values.expectedProfitRate,
+        projectManagerId: values.projectManagerId,
+        planStartDate: values.planStartDate,
+        planEndDate: values.planEndDate,
+        remarks: values.remarks,
+        salesMemberIds: values.salesMemberIds || [],
+        participantMemberIds: values.participantMemberIds || [],
       };
 
       if (isEdit && editProject) {
@@ -82,14 +112,38 @@ export default function ProjectForm({ open, onClose, onSuccess, editProject }: P
         <Form.Item name="description" label="项目概况">
           <Input.TextArea rows={3} placeholder="请输入项目概况" />
         </Form.Item>
+
+        {/* Sales Members - Multi Select */}
+        <Form.Item name="salesMemberIds" label="销售负责人" rules={[{ required: true, message: '请至少选择一位销售负责人' }]}>
+          <Select
+            mode="multiple"
+            showSearch
+            placeholder="请选择销售负责人（可多选）"
+            options={salesOptions}
+            filterOption={(input, option) => (option?.label as string || '').includes(input)}
+          />
+        </Form.Item>
+
         <Form.Item name="projectManagerId" label="项目经理" rules={[{ required: true, message: '请选择项目经理' }]}>
           <Select
             showSearch
             placeholder="请选择项目经理"
-            options={pmOptions.map((u: any) => ({ value: u.id, label: `${u.displayName}${u.department ? ` (${u.department})` : ''}` }))}
+            options={pmOptions}
             filterOption={(input, option) => (option?.label as string || '').includes(input)}
           />
         </Form.Item>
+
+        {/* Participant Members - Multi Select */}
+        <Form.Item name="participantMemberIds" label="参与人员">
+          <Select
+            mode="multiple"
+            showSearch
+            placeholder="请选择参与人员（可多选）"
+            options={participantOptions}
+            filterOption={(input, option) => (option?.label as string || '').includes(input)}
+          />
+        </Form.Item>
+
         <Form.Item name="contractAmount" label="合同金额 (元)" rules={[{ required: true, message: '请输入合同金额' }]}>
           <InputNumber style={{ width: '100%' }} min={0} prefix="¥" placeholder="请输入合同金额" />
         </Form.Item>

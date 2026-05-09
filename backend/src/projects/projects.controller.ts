@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -68,5 +68,14 @@ export class ProjectsController {
     @CurrentUser() user: { userId: number; role: string },
   ) {
     return this.projectsService.reject(id, user.userId, body.comment);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.admin)
+  async delete(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { userId: number; role: string },
+  ) {
+    return this.projectsService.delete(id, user.userId, user.role);
   }
 }

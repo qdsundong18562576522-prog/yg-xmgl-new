@@ -52,6 +52,7 @@ model User {
   operationLogs              OperationLog[]
   uploadedFiles              File[]
   approvalHistory            ApprovalHistory[]
+  projectMembers             ProjectMember[]
 
   @@map("users")
 }
@@ -107,8 +108,23 @@ model Project {
   projectInventory   ProjectInventory[]
   costAdjustmentsSource CostAdjustment[]     @relation("costSource")
   costAdjustmentsTarget CostAdjustment[]     @relation("costTarget")
+  members            ProjectMember[]
 
   @@map("projects")
+}
+
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  projectId Int      @map("project_id")
+  userId    Int      @map("user_id")
+  role      String   @db.VarChar(20) // 'sales' or 'participant'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId, role])
+  @@map("project_members")
 }
 
 // ====== 3. 材料设备库 ======
@@ -143,6 +159,7 @@ enum PurchaseRequestStatus {
 
 model PurchaseRequest {
   id               Int                     @id @default(autoincrement())
+  code             String                  @unique @db.VarChar(50)
   projectId        Int                     @map("project_id")
   totalAmount      Decimal                 @map("total_amount") @db.Decimal(12, 2)
   deliveryAddress  String?                 @map("delivery_address") @db.Text
@@ -194,6 +211,7 @@ enum InquiryStatus {
 
 model InquiryOrder {
   id          Int           @id @default(autoincrement())
+  code        String        @unique @db.VarChar(50)
   prId        Int           @unique @map("pr_id")
   totalAmount Decimal       @map("total_amount") @db.Decimal(12, 2)
   status      InquiryStatus @default(draft)
@@ -241,6 +259,7 @@ enum PurchaseConfirmStatus {
 
 model PurchaseConfirm {
   id                  Int                    @id @default(autoincrement())
+  code                String                 @unique @db.VarChar(50)
   inquiryId           Int                    @unique @map("inquiry_id")
   deliveryPaymentTerms String?               @map("delivery_payment_terms") @db.Text
   supplyCycle         String?                @map("supply_cycle") @db.VarChar(200)
@@ -319,8 +338,11 @@ enum DeliveryNoticeStatus {
 
 model DeliveryNotice {
   id               Int                    @id @default(autoincrement())
-  confirmId        Int                    @map("confirm_id")
+  code             String                 @unique @db.VarChar(50)
+  confirmId        Int                    @unique @map("confirm_id")
   deliveryOption   String?                @map("delivery_option") @db.VarChar(50)
+  transportMethod  String?                @map("transport_method") @db.VarChar(30)
+  trackingNumber   String?                @map("tracking_number") @db.VarChar(100)
   totalDate        DateTime?              @map("total_date")
   receiver         String?                @db.VarChar(100)
   phone            String?                @db.VarChar(20)

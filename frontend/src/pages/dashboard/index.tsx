@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, Col, Row, Progress, Tag, Button } from 'antd';
+import { Card, Col, Row, Progress, Tag, Button, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import {
   ClockCircleOutlined,
   ProjectOutlined,
@@ -44,6 +45,7 @@ const mockProjects = [
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -220,19 +222,19 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className={styles.actionsGrid}>
-          <div className={styles.actionBtn}>
+          <div className={styles.actionBtn} onClick={() => navigate('/projects')}>
             <ProjectOutlined className={styles.actionIcon} />
             新建项目
           </div>
-          <div className={styles.actionBtn}>
+          <div className={styles.actionBtn} onClick={() => message.info('功能开发中')}>
             <ShoppingCartOutlined className={styles.actionIcon} />
             发起采购
           </div>
-          <div className={styles.actionBtn}>
+          <div className={styles.actionBtn} onClick={() => message.info('功能开发中')}>
             <DollarOutlined className={styles.actionIcon} />
             录入回款
           </div>
-          <div className={styles.actionBtn}>
+          <div className={styles.actionBtn} onClick={() => message.info('功能开发中')}>
             <FileTextOutlined className={styles.actionIcon} />
             费用申请
           </div>
