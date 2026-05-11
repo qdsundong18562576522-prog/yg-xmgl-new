@@ -11,6 +11,10 @@ import { PurchaseConfirmsModule } from './purchase-confirms/purchase-confirms.mo
 import { DeliveryNoticesModule } from './delivery-notices/delivery-notices.module';
 import { ApprovalHistoryModule } from './approval-history/approval-history.module';
 import { UploadModule } from './upload/upload.module';
+import { CompanyInventoryModule } from './company-inventory/company-inventory.module';
+import { ProjectInventoryModule } from './project-inventory/project-inventory.module';
+import { StockOutModule } from './stock-out/stock-out.module';
+import { MaterialRequisitionsModule } from './material-requisitions/material-requisitions.module';
 
 @Module({
   imports: [
@@ -26,6 +30,10 @@ import { UploadModule } from './upload/upload.module';
     DeliveryNoticesModule,
     ApprovalHistoryModule,
     UploadModule,
+    CompanyInventoryModule,
+    ProjectInventoryModule,
+    StockOutModule,
+    MaterialRequisitionsModule,
   ],
 })
 export class AppModule {}

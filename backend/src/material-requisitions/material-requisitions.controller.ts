@@ -1,16 +1,16 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ParseIntPipe, Delete } from '@nestjs/common';
-import { DeliveryNoticesService } from './delivery-notices.service';
-import { CreateDeliveryNoticeDto, UpdateDeliveryNoticeDto } from './dto/create-delivery-notice.dto';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { MaterialRequisitionsService } from './material-requisitions.service';
+import { CreateRequisitionDto } from './dto/create-requisition.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/types';
 
-@Controller('delivery-notices')
+@Controller('material-requisitions')
 @UseGuards(JwtAuthGuard, RolesGuard)
-export class DeliveryNoticesController {
-  constructor(private service: DeliveryNoticesService) {}
+export class MaterialRequisitionsController {
+  constructor(private service: MaterialRequisitionsService) {}
 
   @Get()
   async findAll(@Query('projectId') projectId?: string) {
@@ -23,23 +23,13 @@ export class DeliveryNoticesController {
   }
 
   @Post()
-  async create(@Body() dto: CreateDeliveryNoticeDto, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateRequisitionDto, @CurrentUser() user: any) {
     return this.service.create(dto, user.userId);
-  }
-
-  @Put(':id')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateDeliveryNoticeDto, @CurrentUser() user: any) {
-    return this.service.update(id, dto, user.userId, user.role);
   }
 
   @Post(':id/submit')
   async submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
     return this.service.submit(id, user.userId, user.role);
-  }
-
-  @Post(':id/withdraw')
-  async withdraw(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
-    return this.service.withdraw(id, user.userId, user.role);
   }
 
   @Post(':id/approve-purchaser')
@@ -57,11 +47,5 @@ export class DeliveryNoticesController {
   @Post(':id/reject')
   async reject(@Param('id', ParseIntPipe) id: number, @Body() body: any, @CurrentUser() user: any) {
     return this.service.reject(id, user.userId, body.comment);
-  }
-
-  @Delete(':id')
-  @Roles(UserRole.admin)
-  async delete(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
-    return this.service.delete(id, user.userId, user.role);
   }
 }

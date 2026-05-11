@@ -240,6 +240,9 @@ model InquiryItem {
   purchasePrice Decimal @map("purchase_price") @db.Decimal(12, 2)
   totalPrice   Decimal @map("total_price") @db.Decimal(12, 2)
   isExtra      Boolean @default(false) @map("is_extra")
+  groupLabel   String? @map("group_label") @db.VarChar(50)
+  supplierName String? @map("supplier_name") @db.VarChar(200)
+  remark       String? @db.Text
 
   inquiryOrder InquiryOrder @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
   materialLib  MaterialLib? @relation(fields: [materialLibId], references: [id])
@@ -264,6 +267,8 @@ model PurchaseConfirm {
   deliveryPaymentTerms String?               @map("delivery_payment_terms") @db.Text
   supplyCycle         String?                @map("supply_cycle") @db.VarChar(200)
   contractFile        String?                @map("contract_file") @db.Text
+  totalAmount         Decimal                @default(0) @map("total_amount") @db.Decimal(12, 2)
+  groupData           String?                @map("group_data") @db.Text
   status              PurchaseConfirmStatus  @default(draft)
   createdById         Int                    @map("created_by")
   createdAt           DateTime               @default(now()) @map("created_at")
@@ -339,7 +344,8 @@ enum DeliveryNoticeStatus {
 model DeliveryNotice {
   id               Int                    @id @default(autoincrement())
   code             String                 @unique @db.VarChar(50)
-  confirmId        Int                    @unique @map("confirm_id")
+  confirmId        Int                    @map("confirm_id")
+  contractData     String?                @map("contract_data") @db.Text
   deliveryOption   String?                @map("delivery_option") @db.VarChar(50)
   transportMethod  String?                @map("transport_method") @db.VarChar(30)
   trackingNumber   String?                @map("tracking_number") @db.VarChar(100)

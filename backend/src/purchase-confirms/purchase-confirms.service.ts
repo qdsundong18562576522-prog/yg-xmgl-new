@@ -63,15 +63,15 @@ export class PurchaseConfirmsService {
       totalPrice: Number(item.totalPrice),
     }));
 
+    const totalAmount = dto.groups.reduce((sum, g) => sum + g.contractAmount, 0);
     const code = await generateFormCode(this.prisma, 'purchaseConfirm', new Date());
 
     return this.prisma.purchaseConfirm.create({
       data: {
         code,
         inquiryId: dto.inquiryId,
-        deliveryPaymentTerms: dto.deliveryPaymentTerms,
-        supplyCycle: dto.supplyCycle,
-        contractFile: dto.contractFile,
+        totalAmount,
+        groupData: JSON.stringify(dto.groups),
         status: 'draft',
         createdById: userId,
         items: { create: items },
@@ -85,7 +85,7 @@ export class PurchaseConfirmsService {
     if (!pc) throw new NotFoundException('采购确认单不存在');
     if (role !== 'admin') throw new ForbiddenException('仅管理员可删除');
     // Check if any delivery notice references this confirm
-    const dn = await this.prisma.deliveryNotice.findUnique({ where: { confirmId: id } });
+    const dn = await this.prisma.deliveryNotice.findFirst({ where: { confirmId: id } });
     if (dn) throw new BadRequestException('该采购确认单已被供货通知单关联，无法删除');
     await this.prisma.purchaseConfirmItem.deleteMany({ where: { confirmId: id } });
     await this.prisma.purchaseConfirm.delete({ where: { id } });

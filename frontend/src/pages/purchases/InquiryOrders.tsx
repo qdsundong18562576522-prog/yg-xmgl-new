@@ -114,17 +114,33 @@ export default function InquiryOrdersPage() {
             <Descriptions.Item label="状态" span={2}>{statusMap[viewItem.status]?.label || viewItem.status}</Descriptions.Item>
             {viewItem.items && viewItem.items.length > 0 && (
               <Descriptions.Item label="采购明细" span={2}>
-                {viewItem.items.filter((i: any) => !i.isExtra).map((item: any, i: number) => (
-                  <div key={i} style={{ padding: '2px 0' }}>{item.name} / {item.brand} / {item.spec} × {item.quantity}{item.unit} — 采购单价 ¥{Number(item.purchasePrice).toLocaleString()} = ¥{Number(item.totalPrice).toLocaleString()}</div>
-                ))}
-                {viewItem.items.filter((i: any) => i.isExtra).length > 0 && (
-                  <>
-                    <div style={{ marginTop: 8, fontWeight: 500 }}>额外费用：</div>
-                    {viewItem.items.filter((i: any) => i.isExtra).map((item: any, i: number) => (
-                      <div key={i} style={{ padding: '2px 0' }}>{item.name}: ¥{Number(item.totalPrice).toLocaleString()}</div>
-                    ))}
-                  </>
-                )}
+                {(() => {
+                  const groups = new Map();
+                  viewItem.items.forEach((item) => {
+                    const key = item.groupLabel || 'default';
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(item);
+                  });
+                  return Array.from(groups.entries()).map(([label, items]) => {
+                    const normal = items.filter(i => !i.isExtra);
+                    const extras = items.filter(i => i.isExtra);
+                    const supplier = normal[0]?.supplierName || '';
+                    return (
+                      <div key={label} style={{ marginBottom: 12 }}>
+                        <div style={{ fontWeight: 600 }}>{label}{supplier ? ' — ' + supplier : ''}</div>
+                        {normal.map((item, i) => (
+                          <div key={i} style={{ padding: '2px 0 2px 12px', fontSize: 13 }}>{item.name} / {item.brand} / {item.spec} x {item.quantity}{item.unit} - 采购单价 ¥{Number(item.purchasePrice).toLocaleString()} = ¥{Number(item.totalPrice).toLocaleString()}</div>
+                        ))}
+                        {extras.length > 0 && (
+                          <div style={{ fontSize: 13, color: '#666', paddingLeft: 12 }}>
+                            额外费用：{extras.map(e => e.name + ': ¥' + Number(e.totalPrice).toLocaleString()).join('、')}
+                          </div>
+                        )}
+                        {normal[0]?.remark && <div style={{ fontSize: 12, color: '#999', paddingLeft: 12 }}>备注：{normal[0].remark}</div>}
+                      </div>
+                    );
+                  });
+                })()}
               </Descriptions.Item>
             )}
           </Descriptions>

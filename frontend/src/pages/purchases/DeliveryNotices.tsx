@@ -94,6 +94,7 @@ export default function DeliveryNoticesPage() {
       <DeliveryNoticeForm open={formOpen} onClose={() => setFormOpen(false)} onSuccess={fetch} />
       <Modal title="供货通知单详情" open={!!viewItem} onCancel={() => setViewItem(null)} footer={null} width={720}>
         {viewItem && (
+          <>
           <Descriptions column={2} bordered size="small">
             <Descriptions.Item label="编号" span={2}>{viewItem.code}</Descriptions.Item>
             <Descriptions.Item label="关联采购确认" span={2}>
@@ -112,6 +113,7 @@ export default function DeliveryNoticesPage() {
             <Descriptions.Item label="创建时间">{new Date(viewItem.createdAt).toLocaleString()}</Descriptions.Item>
             <Descriptions.Item label="状态" span={2}>{statusMap[viewItem.status]?.label || viewItem.status}</Descriptions.Item>
           </Descriptions>
+            </>
         )}
         {approvalHistory.length > 0 && (
           <div style={{ marginTop: 24 }}>

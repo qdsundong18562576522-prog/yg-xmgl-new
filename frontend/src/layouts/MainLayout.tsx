@@ -17,6 +17,7 @@ import {
   FileSearchOutlined,
   CheckCircleOutlined,
   CarryOutOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -36,7 +37,11 @@ const menuItems = [
     ],
   },
   { key: '/materials', icon: <DatabaseOutlined />, label: '材料设备库' },
-  { key: '/inventory', icon: <DatabaseOutlined />, label: '库存管理' },
+  { key: 'inventory', icon: <DatabaseOutlined />, label: '库存管理', children: [
+      { key: '/inventory/company', icon: <DatabaseOutlined />, label: '公司库存' },
+      { key: '/inventory/project', icon: <DatabaseOutlined />, label: '项目库存' },
+      { key: '/inventory/requisitions', icon: <SendOutlined />, label: '材料领用' },
+    ] },
   { key: '/expenses', icon: <DollarOutlined />, label: '费用报销' },
   { key: '/contracts', icon: <FileTextOutlined />, label: '合同签证' },
   { key: '/finance', icon: <DollarOutlined />, label: '财务管理' },

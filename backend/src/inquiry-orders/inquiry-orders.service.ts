@@ -14,7 +14,7 @@ export class InquiryOrdersService {
       where,
       include: {
         purchaseRequest: {
-          select: { id: true, project: { select: { id: true, name: true, code: true } } },
+          select: { id: true, code: true, project: { select: { id: true, name: true, code: true } } },
         },
         items: true,
         createdBy: { select: { id: true, displayName: true } },
@@ -37,7 +37,6 @@ export class InquiryOrdersService {
   }
 
   async create(dto: CreateInquiryOrderDto, userId: number) {
-    // Validate PR exists and is approved
     const pr = await this.prisma.purchaseRequest.findUnique({
       where: { id: dto.prId },
       include: { items: true },
@@ -45,101 +44,109 @@ export class InquiryOrdersService {
     if (!pr) throw new NotFoundException('采购申请不存在');
     if (pr.status !== 'approved') throw new BadRequestException('只能基于已审批的采购申请发起询价');
 
-    // Auto-copy items from PR with user-provided purchase prices
-    const items = pr.items.map((item, i) => {
-      const pp = dto.purchasePrices?.[i] ?? Number(item.contractPrice);
-      return {
-        materialLibId: item.materialLibId,
-        name: item.name, brand: item.brand, spec: item.spec, unit: item.unit,
-        quantity: Number(item.quantity),
-        contractPrice: Number(item.contractPrice),
-        purchasePrice: pp,
-        totalPrice: pp * Number(item.quantity),
-        isExtra: false,
-      };
-    });
+    const allItems: any[] = [];
 
-    // Add extra items (simplified: name + amount only)
-    if (dto.extraItems) {
-      for (const ei of dto.extraItems) {
-        items.push({
-          materialLibId: null,
-          name: ei.name, brand: '-', spec: '-', unit: '-',
-          quantity: 1, contractPrice: 0,
-          purchasePrice: ei.amount,
-          totalPrice: ei.amount,
-          isExtra: true,
+    for (const group of dto.groups) {
+      const prItems = pr.items.filter((item) => group.itemIds.includes(item.id));
+
+      prItems.forEach((item, idx) => {
+        const pp = group.purchasePrices?.[idx] ?? 0;
+        allItems.push({
+          materialLibId: item.materialLibId,
+          name: item.name, brand: item.brand, spec: item.spec, unit: item.unit,
+          quantity: Number(item.quantity),
+          contractPrice: Number(item.contractPrice),
+          purchasePrice: pp,
+          totalPrice: pp * Number(item.quantity),
+          isExtra: false,
+          groupLabel: group.label,
+          supplierName: group.supplierName,
+          remark: group.remark,
         });
+      });
+
+      if (group.extraItems) {
+        for (const ei of group.extraItems) {
+          allItems.push({
+            materialLibId: null, name: ei.name, brand: '-', spec: '-', unit: '-',
+            quantity: 1, contractPrice: 0, purchasePrice: ei.amount,
+            totalPrice: ei.amount, isExtra: true,
+            groupLabel: group.label,
+            supplierName: group.supplierName,
+            remark: null,
+          });
+        }
       }
     }
 
-    const totalAmount = items.reduce((sum, i) => sum + Number(i.totalPrice), 0);
+    const totalAmount = allItems.reduce((sum, i) => sum + Number(i.totalPrice), 0);
     const code = await generateFormCode(this.prisma, 'inquiryOrder', new Date());
 
     return this.prisma.inquiryOrder.create({
       data: {
-        code,
-        prId: dto.prId,
-        totalAmount,
-        status: 'draft',
-        createdById: userId,
-        items: { create: items },
+        code, prId: dto.prId, totalAmount, status: 'draft', createdById: userId,
+        items: { create: allItems },
       },
-      include: {
-        purchaseRequest: { select: { id: true } },
-        items: true,
-      },
+      include: { purchaseRequest: { select: { id: true } }, items: true },
     });
   }
 
   async update(id: number, dto: UpdateInquiryOrderDto, userId: number, role: string) {
-    const io = await this.prisma.inquiryOrder.findUnique({
-      where: { id },
-      include: { items: { where: { isExtra: false } } },
-    });
+    const io = await this.prisma.inquiryOrder.findUnique({ where: { id } });
     if (!io) throw new NotFoundException('询价单不存在');
     if (io.status !== 'draft') throw new BadRequestException('只能编辑草稿状态的询价单');
 
-    // Update purchase prices for non-extra items
-    if (dto.purchasePrices) {
-      const normalItems = io.items.filter(i => !i.isExtra);
-      for (let i = 0; i < normalItems.length && i < dto.purchasePrices.length; i++) {
-        const pp = dto.purchasePrices[i];
-        await this.prisma.inquiryItem.update({
-          where: { id: normalItems[i].id },
-          data: { purchasePrice: pp, totalPrice: pp * Number(normalItems[i].quantity) },
+    if (dto.groups) {
+      // Delete all existing items and recreate
+      await this.prisma.inquiryItem.deleteMany({ where: { inquiryId: id } });
+
+      const allItems: any[] = [];
+      // Fetch PR items using the already-stored prId from the existing inquiry
+      const pr = await this.prisma.purchaseRequest.findUnique({
+        where: { id: io.prId },
+        include: { items: true },
+      });
+      if (!pr) throw new NotFoundException('关联采购申请不存在');
+
+      for (const group of dto.groups) {
+        const prItems = pr.items.filter((item) => group.itemIds.includes(item.id));
+        prItems.forEach((item, idx) => {
+          const pp = group.purchasePrices?.[idx] ?? 0;
+          allItems.push({
+            inquiryId: id, materialLibId: item.materialLibId,
+            name: item.name, brand: item.brand, spec: item.spec, unit: item.unit,
+            quantity: Number(item.quantity), contractPrice: Number(item.contractPrice),
+            purchasePrice: pp, totalPrice: pp * Number(item.quantity),
+            isExtra: false, groupLabel: group.label, supplierName: group.supplierName, remark: group.remark,
+          });
         });
+        if (group.extraItems) {
+          for (const ei of group.extraItems) {
+            allItems.push({
+              inquiryId: id, materialLibId: null, name: ei.name, brand: '-', spec: '-', unit: '-',
+              quantity: 1, contractPrice: 0, purchasePrice: ei.amount,
+              totalPrice: ei.amount, isExtra: true,
+              groupLabel: group.label, supplierName: group.supplierName, remark: null,
+            });
+          }
+        }
       }
+
+      const totalAmount = allItems.reduce((sum, i) => sum + Number(i.totalPrice), 0);
+      await this.prisma.inquiryItem.createMany({ data: allItems });
+      return this.prisma.inquiryOrder.update({
+        where: { id }, data: { totalAmount },
+        include: { items: true, purchaseRequest: { select: { id: true } } },
+      });
     }
 
-    // Recreate extra items
-    if (dto.extraItems !== undefined) {
-      await this.prisma.inquiryItem.deleteMany({ where: { inquiryId: id, isExtra: true } });
-      for (const ei of dto.extraItems) {
-        await this.prisma.inquiryItem.create({
-          data: {
-            inquiryId: id, name: ei.name, brand: '-', spec: '-', unit: '-',
-            quantity: 1, contractPrice: 0, purchasePrice: ei.amount,
-            totalPrice: ei.amount, isExtra: true,
-          },
-        });
-      }
-    }
-
-    // Recalculate total
-    const allItems = await this.prisma.inquiryItem.findMany({ where: { inquiryId: id } });
-    const totalAmount = allItems.reduce((sum, i) => sum + Number(i.totalPrice), 0);
-    return this.prisma.inquiryOrder.update({
-      where: { id }, data: { totalAmount },
-      include: { items: true, purchaseRequest: { select: { id: true } } },
-    });
+    return this.findOne(id);
   }
 
   async delete(id: number, userId: number, role: string) {
     const io = await this.prisma.inquiryOrder.findUnique({ where: { id } });
     if (!io) throw new NotFoundException('询价单不存在');
     if (role !== 'admin') throw new ForbiddenException('仅管理员可删除');
-    // Check if any purchase confirm references this inquiry
     const pc = await this.prisma.purchaseConfirm.findUnique({ where: { inquiryId: id } });
     if (pc) throw new BadRequestException('该询价单已被采购确认单关联，无法删除');
     await this.prisma.inquiryItem.deleteMany({ where: { inquiryId: id } });

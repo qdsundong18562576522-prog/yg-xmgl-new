@@ -1,48 +1,55 @@
 import { IsNumber, IsOptional, IsArray, ValidateNested, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class InquiryExtraItemDto {
+class InquiryGroupExtraItemDto {
   @IsString()
   name!: string;
 
   @IsNumber()
   amount!: number;
+}
 
-  // Internal: mapped to storage fields
+class InquiryGroupDto {
+  @IsString()
+  label!: string;
+
+  @IsString()
+  supplierName!: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  itemIds!: number[];
+
   @IsOptional()
-  materialLibId?: number;
-  brand?: string;
-  spec?: string;
-  unit?: string;
-  quantity?: number;
-  purchasePrice?: number;
+  @IsArray()
+  @IsNumber({}, { each: true })
+  purchasePrices?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InquiryGroupExtraItemDto)
+  extraItems?: InquiryGroupExtraItemDto[];
+
+  @IsOptional()
+  @IsString()
+  remark?: string;
 }
 
 export class CreateInquiryOrderDto {
   @IsNumber()
   prId!: number;
 
-  @IsOptional()
-  @IsArray()
-  @IsNumber({}, { each: true })
-  purchasePrices?: number[];
-
-  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => InquiryExtraItemDto)
-  extraItems?: InquiryExtraItemDto[];
+  @Type(() => InquiryGroupDto)
+  groups!: InquiryGroupDto[];
 }
 
 export class UpdateInquiryOrderDto {
   @IsOptional()
   @IsArray()
-  @IsNumber({}, { each: true })
-  purchasePrices?: number[];
-
-  @IsOptional()
-  @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => InquiryExtraItemDto)
-  extraItems?: InquiryExtraItemDto[];
+  @Type(() => InquiryGroupDto)
+  groups?: InquiryGroupDto[];
 }

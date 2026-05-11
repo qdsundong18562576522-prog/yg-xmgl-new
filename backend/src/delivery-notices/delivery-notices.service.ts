@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateDeliveryNoticeDto } from './dto/create-delivery-notice.dto';
+import { CreateDeliveryNoticeDto, UpdateDeliveryNoticeDto } from './dto/create-delivery-notice.dto';
 import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
@@ -36,14 +36,26 @@ export class DeliveryNoticesService {
       where: { id },
       include: {
         purchaseConfirm: {
-          select: { id: true, code: true,
-            inquiryOrder: { select: { id: true, code: true,
-              purchaseRequest: { select: { id: true, code: true,
-                project: { select: { id: true, name: true, code: true } }
-              }
-            } }
-          }
-        }
+          select: {
+            id: true,
+            code: true,
+            groupData: true,
+            inquiryOrder: {
+              select: {
+                id: true,
+                code: true,
+                purchaseRequest: {
+                  select: {
+                    id: true,
+                    code: true,
+                    project: {
+                      select: { id: true, name: true, code: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         items: true,
         createdBy: { select: { id: true, displayName: true } },
@@ -80,10 +92,8 @@ export class DeliveryNoticesService {
       data: {
         code,
         confirmId: dto.confirmId,
+        contractData: JSON.stringify(dto.contracts),
         projectId: inquiry?.purchaseRequest.projectId || 0,
-        deliveryOption: dto.deliveryOption,
-        transportMethod: dto.transportMethod,
-        trackingNumber: dto.trackingNumber,
         totalDate: dto.totalDate ? new Date(dto.totalDate) : null,
         receiver: dto.receiver,
         phone: dto.phone,
@@ -92,6 +102,29 @@ export class DeliveryNoticesService {
         createdById: userId,
         items: { create: items },
       },
+      include: { items: true },
+    });
+  }
+
+  async update(id: number, dto: UpdateDeliveryNoticeDto, userId: number, role: string) {
+    const dn = await this.prisma.deliveryNotice.findUnique({ where: { id } });
+    if (!dn) throw new NotFoundException('供货通知单不存在');
+    if (dn.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权修改');
+
+    const data: any = {};
+    if (dto.contracts !== undefined) {
+      data.contractData = JSON.stringify(dto.contracts);
+    }
+    if (dto.totalDate !== undefined) {
+      data.totalDate = dto.totalDate ? new Date(dto.totalDate) : null;
+    }
+    if (dto.receiver !== undefined) data.receiver = dto.receiver;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.address !== undefined) data.address = dto.address;
+
+    return this.prisma.deliveryNotice.update({
+      where: { id },
+      data,
       include: { items: true },
     });
   }
@@ -133,7 +166,10 @@ export class DeliveryNoticesService {
   }
 
   async approveLeader(id: number, userId: number) {
-    const dn = await this.prisma.deliveryNotice.findUnique({ where: { id } });
+    const dn = await this.prisma.deliveryNotice.findUnique({
+      where: { id },
+      include: { items: true },
+    });
     if (!dn) throw new NotFoundException('供货通知单不存在');
     if (dn.status !== 'pending_leader') throw new BadRequestException('状态错误');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -141,7 +177,41 @@ export class DeliveryNoticesService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'delivery-notice', entityId: id, step: 2, approverId: userId, action: 'approve' },
     });
-    return this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'approved' } });
+
+    const result = await this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'approved' } });
+
+    // Auto stock-in
+    const stockIn = await this.prisma.stockIn.create({
+      data: {
+        noticeId: id, projectId: dn.projectId, status: 'auto_generated',
+        items: {
+          create: dn.items.map((item) => ({
+            noticeItemId: item.id, materialLibId: item.materialLibId,
+            name: item.name, brand: item.brand, spec: item.spec, unit: item.unit,
+            quantity: Number(item.quantity), costPrice: Number(item.purchasePrice),
+          })),
+        },
+      },
+    });
+
+    for (const item of dn.items) {
+      if (!item.materialLibId) continue;
+      const existing = await this.prisma.projectInventory.findUnique({
+        where: { projectId_materialLibId: { projectId: dn.projectId, materialLibId: item.materialLibId } },
+      });
+      if (existing) {
+        await this.prisma.projectInventory.update({
+          where: { id: existing.id },
+          data: { quantity: Number(existing.quantity) + Number(item.quantity), costPrice: Number(item.purchasePrice) },
+        });
+      } else {
+        await this.prisma.projectInventory.create({
+          data: { projectId: dn.projectId, materialLibId: item.materialLibId, quantity: Number(item.quantity), costPrice: Number(item.purchasePrice) },
+        });
+      }
+    }
+
+    return result;
   }
 
   async reject(id: number, userId: number, comment?: string) {

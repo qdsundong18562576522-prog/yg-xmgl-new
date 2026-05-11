@@ -20,6 +20,15 @@ async function bootstrap() {
 
   // Serve uploaded files
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  app.useStaticAssets(join(process.cwd(), 'public'));
+  // SPA fallback: serve index.html for non-API routes
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/api/') && !req.path.startsWith('/uploads/') && !req.path.startsWith('/assets/')) {
+      res.sendFile(join(process.cwd(), 'public', 'index.html'));
+    } else {
+      next();
+    }
+  });
 
   const port = process.env.PORT || 12404;
   await app.listen(port);
