@@ -70,6 +70,11 @@ export class ProjectsController {
     return this.projectsService.reject(id, user.userId, body.comment);
   }
 
+  @Get(':id/ledger')
+  async getLedger(@Param('id', ParseIntPipe) id: number) {
+    return this.projectsService.getLedger(id);
+  }
+
   @Delete(':id')
   @Roles(UserRole.admin)
   async delete(

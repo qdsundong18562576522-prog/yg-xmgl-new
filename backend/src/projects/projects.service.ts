@@ -258,4 +258,223 @@ export class ProjectsService {
     await this.prisma.project.delete({ where: { id } });
     return { id, deleted: true };
   }
+
+  async getLedger(id: number) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: {
+        sales: { select: { id: true, displayName: true } },
+        projectManager: { select: { id: true, displayName: true } },
+      },
+    });
+    if (!project) throw new NotFoundException('项目不存在');
+
+    const contractAmount = Number(project.contractAmount);
+
+    // 工程量变更明细
+    const variations = await this.prisma.contractVariation.findMany({
+      where: { projectId: id, status: 'approved' },
+      include: { items: true, createdBy: { select: { displayName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const variationAmount = variations.reduce((sum, v) =>
+      sum + v.items.reduce((s, i) => s + Number(i.quantity) * Number(i.contractPrice), 0), 0);
+    const variationDetails = variations.map(v => ({
+      id: v.id, createdBy: v.createdBy?.displayName || '',
+      createdAt: v.createdAt,
+      items: v.items.map(i => ({
+        name: i.name, spec: i.spec, unit: i.unit,
+        quantity: Number(i.quantity), contractPrice: Number(i.contractPrice),
+        total: Number(i.quantity) * Number(i.contractPrice),
+      })),
+    }));
+
+    // 采购入库明细
+    const stockIns = await this.prisma.stockIn.findMany({
+      where: { projectId: id },
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const stockInItems = stockIns.flatMap(si => si.items.map(i => ({
+      name: i.name, brand: i.brand, spec: i.spec, unit: i.unit,
+      quantity: Number(i.quantity), costPrice: Number(i.costPrice),
+      total: Number(i.quantity) * Number(i.costPrice),
+    })));
+    const stockInTotal = stockInItems.reduce((s, i) => s + i.total, 0);
+
+    // 转出到公司库存明细（已审批的转库记录）
+    const stockOuts = await this.prisma.stockOut.findMany({
+      where: { projectId: id, status: 'approved' },
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const stockOutItems = stockOuts.flatMap(so => so.items.map(i => ({
+      name: i.name, brand: i.brand, spec: i.spec, unit: i.unit,
+      quantity: Number(i.quantity), costPrice: Number(i.costPrice),
+      total: Number(i.quantity) * Number(i.costPrice),
+    })));
+    const stockOutTotal = stockOutItems.reduce((s, i) => s + i.total, 0);
+
+    // 跨项目成本调整（其他项目转给本项目的 + 本项目转给其他项目的）
+    const costAdjIn = await this.prisma.costAdjustment.findMany({
+      where: { targetProjectId: id },
+      include: { sourceProject: { select: { name: true } } },
+    });
+    const costAdjInTotal = costAdjIn.reduce((s, c) => s + Number(c.amount), 0);
+
+    const costAdjOut = await this.prisma.costAdjustment.findMany({
+      where: { sourceProjectId: id },
+      include: { targetProject: { select: { name: true } } },
+    });
+    const costAdjOutTotal = costAdjOut.reduce((s, c) => s + Number(c.amount), 0);
+
+    // 净采购成本 = 入库 - 转出公司库存 + 其他项目转入 - 转给其他项目
+    const netProcurementCost = stockInTotal - stockOutTotal + costAdjInTotal - costAdjOutTotal;
+
+    // 劳务合同
+    const laborContracts = await this.prisma.laborContract.findMany({
+      where: { projectId: id, status: 'approved' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const laborCostTotal = laborContracts.reduce((sum, lc) => sum + Number(lc.amount), 0);
+    const laborContractDetails = laborContracts.map(lc => ({
+      code: lc.code, contractorName: lc.contractorName || '',
+      amount: Number(lc.amount), status: lc.status,
+    }));
+
+    // 劳务签证
+    const laborVisas = await this.prisma.laborVisa.findMany({
+      where: { laborContract: { projectId: id }, status: 'approved' },
+      include: { laborContract: { select: { code: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const laborVisaTotal = laborVisas.reduce((sum, lv) => sum + Number(lv.amountChange), 0);
+    const laborVisaDetails = laborVisas.map(lv => ({
+      code: lv.code, contractCode: lv.laborContract.code,
+      reasonCalc: lv.reasonCalc, amountChange: Number(lv.amountChange),
+    }));
+
+    const totalLaborCost = laborCostTotal + laborVisaTotal;
+
+    // 报销（已审批的）
+    const reimbursements = await this.prisma.reimbursement.findMany({
+      where: { projectId: id, status: 'approved' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const reimbursementTotal = reimbursements.reduce((sum, r) => sum + Number(r.amount), 0);
+    const reimbursementDetails = reimbursements.map(r => ({
+      id: r.id, reason: r.reason, amount: Number(r.amount), hasInvoice: r.hasInvoice,
+    }));
+
+    // 费用申请（已审批的）
+    const expenseRequests = await this.prisma.projectExpenseRequest.findMany({
+      where: { projectId: id, status: 'approved' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const expenseRequestTotal = expenseRequests.reduce((sum, e) => sum + Number(e.amount), 0);
+    const expenseRequestDetails = expenseRequests.map(e => ({
+      id: e.id, reason: e.reason, amount: Number(e.amount),
+    }));
+
+    const otherCostTotal = reimbursementTotal + expenseRequestTotal;
+
+    // 已付款
+    const paymentRequests = await this.prisma.paymentRequest.findMany({
+      where: { projectId: id, status: 'approved' },
+      include: { confirmations: { take: 1 } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const paymentDetails = paymentRequests.map(pr => ({
+      code: pr.code, reason: pr.reason, amount: Number(pr.amount),
+      confirmed: pr.confirmations.length > 0,
+    }));
+    const totalPaidOut = paymentRequests.reduce((sum, pr) => sum + Number(pr.amount), 0);
+
+    // 已回款
+    const receivables = await this.prisma.projectReceivable.findMany({
+      where: { projectId: id },
+      include: { createdBy: { select: { displayName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const receivableDetails = receivables.map(r => ({
+      amount: Number(r.amount), method: r.method,
+      receivedTime: r.receivedTime, createdBy: r.createdBy?.displayName || '',
+    }));
+    const totalReceivable = receivables.reduce((sum, r) => sum + Number(r.amount), 0);
+
+    // 预期结算额 = 合同金额 + 工程量变更 + 劳务签证变更
+    const expectedSettlement = contractAmount + variationAmount + laborVisaTotal;
+
+    // 总成本 = 净采购成本 + 总劳务成本 + 其他成本
+    const totalCost = netProcurementCost + totalLaborCost + otherCostTotal;
+
+    // 预期利润
+    const expectedProfit = expectedSettlement - totalCost;
+    const expectedProfitRate = expectedSettlement > 0
+      ? Math.round((expectedProfit / expectedSettlement) * 10000) / 100
+      : 0;
+
+    // 回款率
+    const receivableRate = expectedSettlement > 0
+      ? Math.round((totalReceivable / expectedSettlement) * 10000) / 100
+      : 0;
+
+    // 成本占比
+    const costBreakdown = {
+      procurementPct: totalCost > 0 ? Math.round((netProcurementCost / totalCost) * 100) : 0,
+      laborPct: totalCost > 0 ? Math.round((totalLaborCost / totalCost) * 100) : 0,
+      otherPct: totalCost > 0 ? Math.round((otherCostTotal / totalCost) * 100) : 0,
+    };
+
+    return {
+      project: {
+        id: project.id, code: project.code, name: project.name,
+        type: project.type, status: project.status,
+        contractAmount, expectedProfitRate: Number(project.expectedProfitRate || 0),
+        salesName: project.sales?.displayName || '',
+        pmName: project.projectManager?.displayName || '',
+        planStartDate: project.planStartDate,
+        planEndDate: project.planEndDate,
+        duration: project.duration,
+      },
+      contractAmount,
+      variationAmount,
+      variationDetails,
+      laborVisaTotal,
+      expectedSettlement,
+      stockInItems,
+      stockInTotal,
+      stockOutItems,
+      stockOutTotal,
+      costAdjustmentsIn: costAdjIn.map(c => ({
+        sourceProject: c.sourceProject?.name || '',
+        amount: Number(c.amount),
+      })),
+      costAdjustmentsInTotal: costAdjInTotal,
+      costAdjustmentsOut: costAdjOut.map(c => ({
+        targetProject: c.targetProject?.name || '',
+        amount: Number(c.amount),
+      })),
+      costAdjustmentsOutTotal: costAdjOutTotal,
+      netProcurementCost,
+      laborContractDetails,
+      laborCostTotal,
+      laborVisaDetails,
+      totalLaborCost,
+      reimbursementDetails,
+      reimbursementTotal,
+      expenseRequestDetails,
+      expenseRequestTotal,
+      otherCostTotal,
+      paymentDetails,
+      totalPaidOut,
+      receivableDetails,
+      totalReceivable,
+      totalCost,
+      expectedProfit,
+      expectedProfitRate,
+      receivableRate,
+      costBreakdown,
+    };
+  }
 }

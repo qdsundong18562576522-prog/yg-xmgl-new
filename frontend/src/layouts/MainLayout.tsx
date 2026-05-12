@@ -54,7 +54,10 @@ const menuItems = [
       { key: '/expenses/requests', icon: <FormOutlined />, label: '费用申请' },
       { key: '/expenses/reimbursements', icon: <FileTextOutlined />, label: '费用报销' },
     ] },
-    { key: '/finance', icon: <DollarOutlined />, label: '财务管理' },
+    { key: 'finance', icon: <DollarOutlined />, label: '财务管理', children: [
+        { key: '/finance/payment-requests', icon: <FormOutlined />, label: '付款申请' },
+        { key: '/finance/receivables', icon: <FileTextOutlined />, label: '项目回款' },
+      ] },
   { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];

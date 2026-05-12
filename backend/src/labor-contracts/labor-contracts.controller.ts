@@ -17,5 +17,6 @@ export class LaborContractsController {
   @Post(':id/submit') async submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.submit(id, user.userId, user.role); }
   @Post(':id/approve-pm') @Roles(UserRole.pm, UserRole.admin) async approvePm(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.approvePm(id, user.userId); }
   @Post(':id/approve-leader') @Roles(UserRole.leader, UserRole.admin) async approveLeader(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.approveLeader(id, user.userId); }
+  @Post(':id/withdraw') async withdraw(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.withdraw(id, user.userId, user.role); }
   @Post(':id/reject') async reject(@Param('id', ParseIntPipe) id: number, @Body() body: any, @CurrentUser() user: any) { return this.service.reject(id, user.userId, body.comment); }
 }

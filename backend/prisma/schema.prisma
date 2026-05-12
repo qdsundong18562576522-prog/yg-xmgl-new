@@ -675,14 +675,17 @@ enum LaborContractStatus {
 }
 
 model LaborContract {
-  id            Int                 @id @default(autoincrement())
-  projectId     Int                 @map("project_id")
-  amount        Decimal             @db.Decimal(12, 2)
-  contractFile  String?             @map("contract_file") @db.Text
-  status        LaborContractStatus @default(draft)
-  createdById   Int                 @map("created_by")
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
+  id              Int                 @id @default(autoincrement())
+  code            String              @unique @db.VarChar(50)
+  projectId       Int                 @map("project_id")
+  contractorName  String?             @map("contractor_name") @db.VarChar(200)
+  amount          Decimal             @db.Decimal(12, 2)
+  description     String?             @db.Text
+  contractFile    String?             @map("contract_file") @db.Text
+  status          LaborContractStatus @default(draft)
+  createdById     Int                 @map("created_by")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
 
   project   Project     @relation(fields: [projectId], references: [id])
   createdBy User         @relation(fields: [createdById], references: [id])
@@ -695,16 +698,18 @@ model LaborContract {
 
 enum LaborVisaStatus {
   draft
-  pending
+  pending_leader
   approved
   rejected
 }
 
 model LaborVisa {
   id              Int             @id @default(autoincrement())
+  code            String          @unique @db.VarChar(50)
   laborContractId Int             @map("labor_contract_id")
   reasonCalc      String          @map("reason_calc") @db.Text
   amountChange    Decimal         @map("amount_change") @db.Decimal(12, 2)
+  description     String?         @db.Text
   status          LaborVisaStatus @default(draft)
   createdById     Int             @map("created_by")
   createdAt       DateTime        @default(now()) @map("created_at")
@@ -728,9 +733,11 @@ enum PaymentRequestStatus {
 
 model PaymentRequest {
   id           Int                  @id @default(autoincrement())
+  code         String               @unique @db.VarChar(50)
   projectId    Int                  @map("project_id")
   contractType String               @map("contract_type") @db.VarChar(20)
   contractId   Int                  @map("contract_id")
+  contractData String?              @map("contract_data") @db.Text
   paymentTerms String?              @map("payment_terms") @db.Text
   reason       String               @db.Text
   amount       Decimal              @db.Decimal(12, 2)

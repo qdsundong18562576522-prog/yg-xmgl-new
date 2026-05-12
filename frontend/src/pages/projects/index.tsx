@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Tag, Space, Card, Tabs, message, Popconfirm, Modal, Descriptions } from 'antd';
-import { PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined, FundOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { projectsApi } from '../../api/projects';
 import type { Project } from '../../api/projects';
 import { useAuthStore } from '../../stores/authStore';
@@ -24,6 +25,7 @@ export default function ProjectsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [viewProject, setViewProject] = useState<Project | null>(null);
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState('all');
 
@@ -150,6 +152,7 @@ export default function ProjectsPage() {
             onClick={() => setViewProject(record)}>
             查看
           </Button>
+          <Button type="link" size="small" icon={<FundOutlined />} onClick={() => navigate(`/projects/ledger/${record.id}`)}>台账</Button>
           {canEdit(record) && (
             <Button type="link" size="small" icon={<EditOutlined />}
               onClick={() => { setEditProject(record); setFormOpen(true); }}>

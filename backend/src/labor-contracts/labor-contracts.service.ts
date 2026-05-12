@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLaborContractDto } from './dto/create-labor-contract.dto';
+import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
 export class LaborContractsService {
@@ -26,8 +27,18 @@ export class LaborContractsService {
   }
 
   async create(dto: CreateLaborContractDto, userId: number) {
+    const code = await generateFormCode(this.prisma, 'laborContract', new Date());
     return this.prisma.laborContract.create({
-      data: { projectId: dto.projectId, amount: dto.amount, contractFile: dto.contractFile, status: 'draft', createdById: userId },
+      data: {
+        code,
+        projectId: dto.projectId,
+        contractorName: dto.contractorName,
+        amount: dto.amount,
+        description: dto.description,
+        contractFile: dto.contractFile,
+        status: 'draft',
+        createdById: userId,
+      },
       include: { project: { select: { id: true, name: true } } },
     });
   }
@@ -37,6 +48,14 @@ export class LaborContractsService {
     if (!lc) throw new NotFoundException('劳务合同不存在');
     if (lc.status !== 'draft') throw new BadRequestException('只能提交草稿');
     return this.prisma.laborContract.update({ where: { id }, data: { status: 'pending_pm' } });
+  }
+
+  async withdraw(id: number, userId: number, role: string) {
+    const lc = await this.prisma.laborContract.findUnique({ where: { id } });
+    if (!lc) throw new NotFoundException('劳务合同不存在');
+    if (lc.status !== 'pending_pm' && lc.status !== 'pending_leader') throw new BadRequestException('只能撤回审批中的单据');
+    if (lc.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权撤回');
+    return this.prisma.laborContract.update({ where: { id }, data: { status: 'draft' } });
   }
 
   async approvePm(id: number, userId: number) {

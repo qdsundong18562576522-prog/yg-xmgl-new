@@ -21,6 +21,9 @@ import ReimbursementsPage from './pages/expenses/Reimbursements';
 import ContractVariationsPage from './pages/expenses/ContractVariations';
 import LaborContractsPage from './pages/labor/LaborContracts';
 import LaborVisasPage from './pages/labor/LaborVisas';
+import ProjectLedgerPage from './pages/projects/ProjectLedger';
+import PaymentRequestsPage from './pages/finance/PaymentRequests';
+import ProjectReceivablesPage from './pages/finance/ProjectReceivables';
 import { useAuthStore } from './stores/authStore';
 
 const queryClient = new QueryClient();
@@ -61,8 +64,11 @@ export default function App() {
                 <Route path="expenses/requests" element={<ExpenseRequestsPage />} />
                 <Route path="expenses/reimbursements" element={<ReimbursementsPage />} />
                 <Route path="projects/variations" element={<ContractVariationsPage />} />
+                <Route path="projects/ledger/:id" element={<ProjectLedgerPage />} />
                 <Route path="labor/contracts" element={<LaborContractsPage />} />
                 <Route path="labor/visas" element={<LaborVisasPage />} />
+                <Route path="finance/payment-requests" element={<PaymentRequestsPage />} />
+                <Route path="finance/receivables" element={<ProjectReceivablesPage />} />
                 <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
               </Route>
             </Routes>

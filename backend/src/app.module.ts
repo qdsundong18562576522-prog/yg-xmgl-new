@@ -20,6 +20,8 @@ import { ReimbursementsModule } from './reimbursements/reimbursements.module';
 import { ContractVariationsModule } from './contract-variations/contract-variations.module';
 import { LaborContractsModule } from './labor-contracts/labor-contracts.module';
 import { LaborVisasModule } from './labor-visas/labor-visas.module';
+import { PaymentRequestsModule } from './payment-requests/payment-requests.module';
+import { ProjectReceivablesModule } from './project-receivables/project-receivables.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { LaborVisasModule } from './labor-visas/labor-visas.module';
     ContractVariationsModule,
     LaborContractsModule,
     LaborVisasModule,
+    PaymentRequestsModule,
+    ProjectReceivablesModule,
   ],
 })
 export class AppModule {}

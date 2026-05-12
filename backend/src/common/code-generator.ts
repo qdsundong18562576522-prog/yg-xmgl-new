@@ -5,6 +5,9 @@ const TYPE_MAP: Record<string, string> = {
   inquiryOrder: 'CGCX',
   purchaseConfirm: 'CGQR',
   deliveryNotice: 'GHTZ',
+  laborContract: 'LWHT',
+  laborVisa: 'LWQZ',
+  paymentRequest: 'FKSQ',
 };
 
 const MODELS = {
@@ -12,6 +15,9 @@ const MODELS = {
   inquiryOrder: 'inquiryOrder' as const,
   purchaseConfirm: 'purchaseConfirm' as const,
   deliveryNotice: 'deliveryNotice' as const,
+  laborContract: 'laborContract' as const,
+  laborVisa: 'laborVisa' as const,
+  paymentRequest: 'paymentRequest' as const,
 } as const;
 
 type FormType = keyof typeof TYPE_MAP;
