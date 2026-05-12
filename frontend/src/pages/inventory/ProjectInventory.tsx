@@ -4,6 +4,7 @@ import { ArrowUpOutlined } from '@ant-design/icons';
 import { projectInventoryApi } from '../../api/inventory';
 import request from '../../api/request';
 import StockOutForm from './StockOutForm';
+import StockOutInstallForm from './StockOutInstallForm';
 
 export default function ProjectInventoryPage() {
   const [inventory, setInventory] = useState<any[]>([]);
@@ -11,6 +12,7 @@ export default function ProjectInventoryPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>(undefined);
   const [stockOutOpen, setStockOutOpen] = useState(false);
+  const [stockOutInstallOpen, setStockOutInstallOpen] = useState(false);
 
   useEffect(() => {
     request.get('/projects').then((res: any) => setProjects(res.data || []));
@@ -50,14 +52,16 @@ export default function ProjectInventoryPage() {
             options={projects.map((p: any) => ({ value: p.id, label: `${p.name} (${p.code})` }))}
           />
           {selectedProjectId && (
-            <Button type="primary" icon={<ArrowUpOutlined />} onClick={() => setStockOutOpen(true)}>
-              一键转公司库存
-            </Button>
+            <>
+              <Button type="default" onClick={() => setStockOutInstallOpen(true)}>出库</Button>
+              <Button type="primary" icon={<ArrowUpOutlined />} onClick={() => setStockOutOpen(true)}>转入公司库存</Button>
+            </>
           )}
         </div>
         <Table dataSource={inventory} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 15 }} />
       </Card>
       <StockOutForm open={stockOutOpen} onClose={() => setStockOutOpen(false)} onSuccess={() => fetchInventory(selectedProjectId)} projectId={selectedProjectId!} />
+      <StockOutInstallForm open={stockOutInstallOpen} onClose={() => setStockOutInstallOpen(false)} onSuccess={() => fetchInventory(selectedProjectId)} projectId={selectedProjectId!} />
     </div>
   );
 }

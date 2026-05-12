@@ -1,4 +1,4 @@
-import { IsNumber, IsArray, IsOptional, Min } from 'class-validator';
+import { IsNumber, IsArray, IsOptional, IsString, Min } from 'class-validator';
 
 class RequisitionItemDto {
   @IsNumber()
@@ -23,4 +23,9 @@ export class CreateRequisitionDto {
 
   @IsArray()
   items!: RequisitionItemDto[];
+
+  @IsOptional() @IsString() deliveryMethod?: string;
+  @IsOptional() @IsString() receiver?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() address?: string;
 }

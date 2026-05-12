@@ -39,4 +39,10 @@ export class MaterialsController {
   async delete(@Param('id', ParseIntPipe) id: number) {
     return this.materialsService.delete(id);
   }
+
+  @Post('batch-delete')
+  @Roles(UserRole.purchaser, UserRole.admin)
+  async batchDelete(@Body() body: { ids: number[] }) {
+    return this.materialsService.batchDelete(body.ids);
+  }
 }

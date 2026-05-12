@@ -15,6 +15,11 @@ import { CompanyInventoryModule } from './company-inventory/company-inventory.mo
 import { ProjectInventoryModule } from './project-inventory/project-inventory.module';
 import { StockOutModule } from './stock-out/stock-out.module';
 import { MaterialRequisitionsModule } from './material-requisitions/material-requisitions.module';
+import { ExpenseRequestsModule } from './expense-requests/expense-requests.module';
+import { ReimbursementsModule } from './reimbursements/reimbursements.module';
+import { ContractVariationsModule } from './contract-variations/contract-variations.module';
+import { LaborContractsModule } from './labor-contracts/labor-contracts.module';
+import { LaborVisasModule } from './labor-visas/labor-visas.module';
 
 @Module({
   imports: [
@@ -34,6 +39,11 @@ import { MaterialRequisitionsModule } from './material-requisitions/material-req
     ProjectInventoryModule,
     StockOutModule,
     MaterialRequisitionsModule,
+    ExpenseRequestsModule,
+    ReimbursementsModule,
+    ContractVariationsModule,
+    LaborContractsModule,
+    LaborVisasModule,
   ],
 })
 export class AppModule {}

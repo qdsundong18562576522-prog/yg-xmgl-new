@@ -26,7 +26,10 @@ const { Header, Sider, Content } = Layout;
 
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '工作台' },
-  { key: '/projects', icon: <ProjectOutlined />, label: '项目管理' },
+  { key: 'projects', icon: <ProjectOutlined />, label: '项目管理', children: [
+      { key: '/projects', icon: <ProjectOutlined />, label: '项目立项' },
+      { key: '/projects/variations', icon: <FormOutlined />, label: '工程量变更' },
+    ] },
   {
     key: 'purchases', icon: <ShoppingCartOutlined />, label: '采购管理',
     children: [
@@ -36,15 +39,22 @@ const menuItems = [
       { key: '/purchases/delivery', icon: <CarryOutOutlined />, label: '供货通知' },
     ],
   },
+  { key: 'labor', icon: <FileTextOutlined />, label: '劳务管理', children: [
+      { key: '/labor/contracts', icon: <CarryOutOutlined />, label: '劳务合同确认' },
+      { key: '/labor/visas', icon: <FileSearchOutlined />, label: '劳务签证' },
+    ] },
   { key: '/materials', icon: <DatabaseOutlined />, label: '材料设备库' },
   { key: 'inventory', icon: <DatabaseOutlined />, label: '库存管理', children: [
       { key: '/inventory/company', icon: <DatabaseOutlined />, label: '公司库存' },
       { key: '/inventory/project', icon: <DatabaseOutlined />, label: '项目库存' },
       { key: '/inventory/requisitions', icon: <SendOutlined />, label: '材料领用' },
+      { key: '/inventory/stock-out', icon: <DatabaseOutlined />, label: '转库记录' },
     ] },
-  { key: '/expenses', icon: <DollarOutlined />, label: '费用报销' },
-  { key: '/contracts', icon: <FileTextOutlined />, label: '合同签证' },
-  { key: '/finance', icon: <DollarOutlined />, label: '财务管理' },
+  { key: 'expenses', icon: <DollarOutlined />, label: '项目费用管理', children: [
+      { key: '/expenses/requests', icon: <FormOutlined />, label: '费用申请' },
+      { key: '/expenses/reimbursements', icon: <FileTextOutlined />, label: '费用报销' },
+    ] },
+    { key: '/finance', icon: <DollarOutlined />, label: '财务管理' },
   { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];

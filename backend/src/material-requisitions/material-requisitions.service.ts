@@ -42,7 +42,7 @@ export class MaterialRequisitionsService {
         quantity: item.quantity,
         costPrice: item.costPrice,
         contractPrice: item.contractPrice,
-        total: item.quantity * item.contractPrice,
+        total: item.quantity * item.costPrice,
       };
     }));
 
@@ -54,6 +54,10 @@ export class MaterialRequisitionsService {
         totalCost,
         status: 'draft',
         createdById: userId,
+        deliveryMethod: dto.deliveryMethod,
+        receiver: dto.receiver,
+        phone: dto.phone,
+        address: dto.address,
         items: { create: items },
       },
       include: {
@@ -129,6 +133,32 @@ export class MaterialRequisitionsService {
         await this.prisma.projectInventory.create({
           data: { projectId: req.projectId, materialLibId: item.materialLibId, quantity: decrQty, costPrice: Number(item.costPrice) },
         });
+      }
+
+      // Cost transfer: check if this material was transferred from another project
+      const stockOut = await this.prisma.stockOut.findFirst({
+        where: {
+          status: 'approved',
+          items: { some: { materialLibId: item.materialLibId } },
+        },
+        include: { items: { where: { materialLibId: item.materialLibId } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (stockOut && stockOut.projectId !== req.projectId) {
+        const soItem = stockOut.items[0];
+        if (soItem) {
+          const transferAmount = decrQty * Number(soItem.costPrice);
+          await this.prisma.costAdjustment.create({
+            data: {
+              sourceProjectId: stockOut.projectId,
+              targetProjectId: req.projectId,
+              stockOutId: stockOut.id,
+              requisitionId: id,
+              amount: transferAmount,
+              status: 'completed',
+            },
+          });
+        }
       }
     }
 

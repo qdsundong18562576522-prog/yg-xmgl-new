@@ -108,6 +108,14 @@ export class StockOutService {
           where: { id: ci.id },
           data: { quantity: Number(ci.quantity) + Number(item.quantity), costPrice: Number(item.costPrice) },
         });
+      } else {
+        await this.prisma.companyInventory.create({
+          data: {
+            materialLibId: item.materialLibId,
+            quantity: Number(item.quantity),
+            costPrice: Number(item.costPrice),
+          },
+        });
       }
     }
 

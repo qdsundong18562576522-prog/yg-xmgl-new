@@ -15,6 +15,12 @@ import DeliveryNoticesPage from './pages/purchases/DeliveryNotices';
 import CompanyInventoryPage from './pages/inventory/CompanyInventory';
 import ProjectInventoryPage from './pages/inventory/ProjectInventory';
 import MaterialRequisitionsPage from './pages/inventory/MaterialRequisitions';
+import StockOutRecordsPage from './pages/inventory/StockOutRecords';
+import ExpenseRequestsPage from './pages/expenses/ExpenseRequests';
+import ReimbursementsPage from './pages/expenses/Reimbursements';
+import ContractVariationsPage from './pages/expenses/ContractVariations';
+import LaborContractsPage from './pages/labor/LaborContracts';
+import LaborVisasPage from './pages/labor/LaborVisas';
 import { useAuthStore } from './stores/authStore';
 
 const queryClient = new QueryClient();
@@ -51,6 +57,12 @@ export default function App() {
                 <Route path="inventory/company" element={<CompanyInventoryPage />} />
                 <Route path="inventory/project" element={<ProjectInventoryPage />} />
                 <Route path="inventory/requisitions" element={<MaterialRequisitionsPage />} />
+                <Route path="inventory/stock-out" element={<StockOutRecordsPage />} />
+                <Route path="expenses/requests" element={<ExpenseRequestsPage />} />
+                <Route path="expenses/reimbursements" element={<ReimbursementsPage />} />
+                <Route path="projects/variations" element={<ContractVariationsPage />} />
+                <Route path="labor/contracts" element={<LaborContractsPage />} />
+                <Route path="labor/visas" element={<LaborVisasPage />} />
                 <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
               </Route>
             </Routes>

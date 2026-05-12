@@ -511,6 +511,10 @@ model MaterialRequisition {
   totalCost   Decimal            @map("total_cost") @db.Decimal(12, 2)
   status      RequisitionStatus  @default(draft)
   createdById Int                @map("created_by")
+  deliveryMethod String?         @map("delivery_method") @db.VarChar(20)
+  receiver       String?         @db.VarChar(100)
+  phone          String?         @db.VarChar(20)
+  address        String?         @db.Text
   createdAt   DateTime           @default(now()) @map("created_at")
   updatedAt   DateTime           @updatedAt @map("updated_at")
 

@@ -13,4 +13,5 @@ export const materialsApi = {
   create: (data: Partial<Material>) => request.post('/materials', data),
   update: (id: number, data: Partial<Material>) => request.put(`/materials/${id}`, data),
   delete: (id: number) => request.delete(`/materials/${id}`),
+  batchDelete: (ids: number[]) => request.post('/materials/batch-delete', { ids }),
 };

@@ -49,4 +49,9 @@ export class MaterialsService {
     await this.prisma.materialLib.delete({ where: { id } });
     return { id, deleted: true };
   }
+
+  async batchDelete(ids: number[]) {
+    await this.prisma.materialLib.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: ids.length };
+  }
 }

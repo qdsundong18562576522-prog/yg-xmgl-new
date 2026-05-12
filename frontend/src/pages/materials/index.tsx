@@ -11,6 +11,7 @@ export default function MaterialsPage() {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Material | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [form] = Form.useForm();
   const user = useAuthStore((s) => s.user);
   const canEdit = user && (user.role === 'purchaser' || user.role === 'admin');
@@ -55,6 +56,17 @@ export default function MaterialsPage() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    try {
+      await materialsApi.batchDelete(selectedRowKeys);
+      message.success(`已删除 ${selectedRowKeys.length} 项`);
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || '批量删除失败');
+    }
+  };
+
   const openEdit = (item: Material) => {
     setEditItem(item);
     form.setFieldsValue(item);
@@ -85,15 +97,32 @@ export default function MaterialsPage() {
         title="材料设备库"
         extra={canEdit ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditItem(null); form.resetFields(); setModalOpen(true); }}>新增材料</Button> : undefined}
       >
-        <Input
-          placeholder="搜索材料名称、品牌、规格..."
-          prefix={<SearchOutlined />}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 320, marginBottom: 16 }}
-          allowClear
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+          <Input
+            placeholder="搜索材料名称、品牌、规格..."
+            prefix={<SearchOutlined />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 320 }}
+            allowClear
+          />
+          {canEdit && selectedRowKeys.length > 0 && (
+            <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 项？`} onConfirm={handleBatchDelete}>
+              <Button danger icon={<DeleteOutlined />}>批量删除（{selectedRowKeys.length}）</Button>
+            </Popconfirm>
+          )}
+        </div>
+        <Table
+          dataSource={data}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 15 }}
+          rowSelection={canEdit ? {
+            selectedRowKeys,
+            onChange: (keys: any) => setSelectedRowKeys(keys),
+          } : undefined}
         />
-        <Table dataSource={data} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 15 }} />
       </Card>
 
       <Modal

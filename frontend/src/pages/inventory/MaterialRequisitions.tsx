@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Tag, Space, Card, Tabs, message, Modal, Form, Select, InputNumber } from 'antd';
+import { Table, Button, Tag, Space, Card, Tabs, message, Modal, Form, Select, InputNumber, Input } from 'antd';
 import { PlusOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { materialRequisitionsApi } from '../../api/inventory';
 import { useAuthStore } from '../../stores/authStore';
@@ -96,13 +96,21 @@ function RequisitionForm({ open, onClose, onSuccess }: { open: boolean; onClose:
   const [projects, setProjects] = useState<any[]>([]);
   const [companyItems, setCompanyItems] = useState<any[]>([]);
   const [rows, setRows] = useState<any[]>([{ materialLibId: undefined, quantity: 0, contractPrice: 0 }]);
+  const [deliveryMethod, setDeliveryMethod] = useState<string>();
+  const [receiver, setReceiver] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
 
   useEffect(() => {
     if (open) {
       request.get('/projects').then((res: any) => setProjects(res.data || []));
       request.get('/company-inventory').then((res: any) => setCompanyItems(res.data || []));
       form.resetFields();
-      setRows([{ materialLibId: undefined, quantity: 0, contractPrice: 0 }]);
+      setRows([{ materialLibId: undefined, quantity: 0 }]);
+      setDeliveryMethod(undefined);
+      setReceiver('');
+      setPhone('');
+      setAddress('');
     }
   }, [open, form]);
 
@@ -111,16 +119,16 @@ function RequisitionForm({ open, onClose, onSuccess }: { open: boolean; onClose:
     newRows[idx] = { ...newRows[idx], [field]: value };
     if (field === 'materialLibId') {
       const item = companyItems.find((c: any) => c.materialLibId === value);
-      if (item) newRows[idx].costPrice = Number(item.costPrice);
+      if (item) { newRows[idx].costPrice = Number(item.costPrice); newRows[idx].contractPrice = Number(item.costPrice); }
     }
     setRows(newRows);
   };
 
-  const addRow = () => setRows([...rows, { materialLibId: undefined, quantity: 0, contractPrice: 0 }]);
+  const addRow = () => setRows([...rows, { materialLibId: undefined, quantity: 0 }]);
   const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
 
   const totalCost = useMemo(() =>
-    rows.reduce((sum, r) => sum + (r.quantity || 0) * (r.contractPrice || 0), 0),
+    rows.reduce((sum, r) => sum + (r.quantity || 0) * (r.costPrice || 0), 0),
     [rows]
   );
 
@@ -134,11 +142,15 @@ function RequisitionForm({ open, onClose, onSuccess }: { open: boolean; onClose:
     try {
       await materialRequisitionsApi.create({
         projectId,
+        deliveryMethod: deliveryMethod || undefined,
+        receiver: deliveryMethod === '快递物流' ? receiver : undefined,
+        phone: deliveryMethod === '快递物流' ? phone : undefined,
+        address: deliveryMethod === '快递物流' ? address : undefined,
         items: validRows.map((r) => ({
           materialLibId: r.materialLibId,
           quantity: r.quantity,
           costPrice: r.costPrice || 0,
-          contractPrice: r.contractPrice || 0,
+          contractPrice: r.costPrice || 0,
         })),
       });
       message.success('创建成功');
@@ -165,22 +177,51 @@ function RequisitionForm({ open, onClose, onSuccess }: { open: boolean; onClose:
         </Form.Item>
 
         {rows.map((row, idx) => (
-          <Space key={idx} style={{ display: 'flex', marginBottom: 8, alignItems: 'flex-start' }}>
-            <Select
-              placeholder="选择材料"
-              showSearch
-              style={{ width: 220 }}
-              value={row.materialLibId}
-              onChange={(v) => updateRow(idx, 'materialLibId', v)}
-              options={materialOptions}
-              filterOption={(input, option) => (option?.label as string || '').includes(input)}
-            />
-            <InputNumber placeholder="数量" min={0} style={{ width: 100 }} value={row.quantity} onChange={(v) => updateRow(idx, 'quantity', v || 0)} />
-            <InputNumber placeholder="合同单价" prefix="¥" min={0} style={{ width: 120 }} value={row.contractPrice} onChange={(v) => updateRow(idx, 'contractPrice', v || 0)} />
-            {rows.length > 1 && <Button type="link" danger onClick={() => removeRow(idx)}>删除</Button>}
-          </Space>
+          <div key={idx} style={{ marginBottom: 12, padding: 12, border: '1px solid #f0f0f0', borderRadius: 6 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <Select
+                placeholder="选择材料"
+                showSearch
+                style={{ width: 200 }}
+                value={row.materialLibId}
+                onChange={(v) => updateRow(idx, 'materialLibId', v)}
+                options={materialOptions}
+                filterOption={(input, option) => (option?.label as string || '').includes(input)}
+              />
+              <InputNumber placeholder="数量" min={0} style={{ width: 70 }} value={row.quantity} onChange={(v) => updateRow(idx, 'quantity', v || 0)} />
+              <div style={{ lineHeight: '32px', fontSize: 14, fontWeight: 500, minWidth: 120 }}>
+                单价：¥{Number(row.costPrice || 0).toLocaleString()}
+              </div>
+              <div style={{ lineHeight: '32px', fontSize: 14, fontWeight: 600, color: '#1890ff', minWidth: 120 }}>
+                小计：¥{((row.quantity || 0) * (row.costPrice || 0)).toLocaleString()}
+              </div>
+              {rows.length > 1 && <Button type="link" danger onClick={() => removeRow(idx)}>删除</Button>}
+            </div>
+          </div>
         ))}
         <Button type="dashed" onClick={addRow} block style={{ marginBottom: 8 }}>添加一行</Button>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>领用方式</div>
+          <Select
+            placeholder="选择领用方式"
+            style={{ width: 300 }}
+            value={deliveryMethod}
+            onChange={setDeliveryMethod}
+            options={[
+              { value: '自提', label: '自提' },
+              { value: '快递物流', label: '快递物流' },
+            ]}
+          />
+        </div>
+
+        {deliveryMethod === '快递物流' && (
+          <div style={{ marginBottom: 12 }}>
+            <Input placeholder="收货人" style={{ marginBottom: 8, width: 300 }} value={receiver} onChange={(e) => setReceiver(e.target.value)} />
+            <Input placeholder="电话" style={{ marginBottom: 8, width: 300 }} value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Input placeholder="收货地址" value={address} onChange={(e) => setAddress(e.target.value)} />
+          </div>
+        )}
 
         <div style={{ textAlign: 'right', fontWeight: 600, fontSize: 16 }}>
           合计：¥{totalCost.toLocaleString()}
