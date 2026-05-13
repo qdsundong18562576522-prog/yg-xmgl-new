@@ -18,6 +18,11 @@ export class ProjectsController {
     return this.projectsService.findAll(user.userId, user.role);
   }
 
+  @Get('ledger-list')
+  async getLedgerList() {
+    return this.projectsService.getLedgerList();
+  }
+
   @Get(':id')
   async findOne(
     @Param('id', ParseIntPipe) id: number,

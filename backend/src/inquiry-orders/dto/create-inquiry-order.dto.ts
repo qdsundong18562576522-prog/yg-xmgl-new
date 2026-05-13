@@ -27,6 +27,11 @@ class InquiryGroupDto {
 
   @IsOptional()
   @IsArray()
+  @IsNumber({}, { each: true })
+  quantities?: number[];
+
+  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InquiryGroupExtraItemDto)
   extraItems?: InquiryGroupExtraItemDto[];

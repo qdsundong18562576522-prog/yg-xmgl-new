@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Card, message, Modal, Descriptions, Form, Select, InputNumber, DatePicker } from 'antd';
-import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Button, Card, message, Modal, Descriptions, Form, Select, InputNumber, DatePicker, Space } from 'antd';
+import { PlusOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { projectReceivablesApi } from '../../api/finance';
+import { useAuthStore } from '../../stores/authStore';
 import request from '../../api/request';
 
 const methodOptions = ['银行转账', '现金', '承兑汇票', '保理', '其他'];
@@ -11,6 +12,7 @@ export default function ProjectReceivablesPage() {
   const [loading, setLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [viewItem, setViewItem] = useState<any>(null);
+  const user = useAuthStore((s) => s.user);
 
   const fetch = async () => {
     setLoading(true);
@@ -31,8 +33,27 @@ export default function ProjectReceivablesPage() {
     { title: '回款方式', dataIndex: 'method' },
     { title: '回款时间', dataIndex: 'receivedTime', render: (v: string) => new Date(v).toLocaleString() },
     { title: '创建人', dataIndex: ['createdBy', 'displayName'], width: 100 },
-    { title: '操作', key: 'action', width: 80, render: (_: any, record: any) => (
-      <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setViewItem(record)}>查看</Button>
+    { title: '操作', key: 'action', width: 130, render: (_: any, record: any) => (
+      <Space>
+        <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setViewItem(record)}>查看</Button>
+        {(record.createdById === user?.id || user?.role === 'admin') && (
+          <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => {
+            Modal.confirm({
+              title: '确认删除',
+              content: `确定要删除这笔回款记录（¥${Number(record.amount || 0).toLocaleString()}）吗？`,
+              onOk: async () => {
+                try {
+                  await projectReceivablesApi.delete(record.id);
+                  message.success('已删除');
+                  fetch();
+                } catch (e: any) {
+                  message.error(e?.response?.data?.message || '删除失败');
+                }
+              },
+            });
+          }}>删除</Button>
+        )}
+      </Space>
     )},
   ];
 

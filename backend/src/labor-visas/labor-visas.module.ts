@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LaborVisasController } from './labor-visas.controller';
 import { LaborVisasService } from './labor-visas.service';
-@Module({ controllers: [LaborVisasController], providers: [LaborVisasService], exports: [LaborVisasService] })
+import { NotificationsModule } from '../notifications/notifications.module';
+@Module({ controllers: [LaborVisasController], providers: [LaborVisasService], exports: [LaborVisasService], imports: [NotificationsModule] })
 export class LaborVisasModule {}

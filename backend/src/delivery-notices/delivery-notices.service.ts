@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateDeliveryNoticeDto, UpdateDeliveryNoticeDto } from './dto/create-delivery-notice.dto';
 import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
 export class DeliveryNoticesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -142,7 +146,13 @@ export class DeliveryNoticesService {
     const dn = await this.prisma.deliveryNotice.findUnique({ where: { id } });
     if (!dn) throw new NotFoundException('供货通知单不存在');
     if (dn.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'pending_purchaser' } });
+    const result = await this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'pending_purchaser' } });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'purchaser', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '供货通知审批通知', `${currentUser.displayName} 提交了 ${dn.code}，待您审批`, 'delivery-notice', id);
+    }
+    return result;
   }
 
   async withdraw(id: number, userId: number, role: string) {
@@ -150,7 +160,14 @@ export class DeliveryNoticesService {
     if (!dn) throw new NotFoundException('供货通知单不存在');
     if (!['pending_purchaser', 'pending_leader'].includes(dn.status)) throw new BadRequestException('只能撤回审批中的申请');
     if (dn.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权撤回');
-    return this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'draft' } });
+    const result = await this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'draft' } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    const nextApprover = await this.prisma.user.findFirst({ where: { role: 'purchaser', isActive: true } });
+    const targetUserId = nextApprover?.id || dn.createdById;
+    if (currentUser) {
+      await this.notifications.notify(targetUserId, 'withdrawn', '供货通知已撤回', `${currentUser.displayName} 撤回了 ${dn.code}`, 'delivery-notice', id);
+    }
+    return result;
   }
 
   async approvePurchaser(id: number, userId: number) {
@@ -162,7 +179,9 @@ export class DeliveryNoticesService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'delivery-notice', entityId: id, step: 1, approverId: userId, action: 'approve' },
     });
-    return this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'pending_leader' } });
+    const updateRes = await this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'pending_leader' } });
+    await this.notifications.notify(dn.createdById, 'approved', '供货通知已通过', `您的 ${dn.code} 已通过审批`, 'delivery-notice', id);
+    return updateRes;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -179,6 +198,8 @@ export class DeliveryNoticesService {
     });
 
     const result = await this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'approved' } });
+
+    await this.notifications.notify(dn.createdById, 'approved', '供货通知已通过', `您的 ${dn.code} 已通过审批`, 'delivery-notice', id);
 
     // Auto stock-in
     const stockIn = await this.prisma.stockIn.create({
@@ -223,6 +244,8 @@ export class DeliveryNoticesService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'delivery-notice', entityId: id, step: 99, approverId: userId, action: 'reject', comment },
     });
-    return this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'rejected' } });
+    const rejectRes = await this.prisma.deliveryNotice.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(dn.createdById, 'rejected', '供货通知已驳回', `您的 ${dn.code} 已被驳回${comment ? '：' + comment : ''}`, 'delivery-notice', id);
+    return rejectRes;
   }
 }

@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreatePurchaseConfirmDto } from './dto/create-purchase-confirm.dto';
 import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
 export class PurchaseConfirmsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -96,7 +100,13 @@ export class PurchaseConfirmsService {
     const pc = await this.prisma.purchaseConfirm.findUnique({ where: { id } });
     if (!pc) throw new NotFoundException('采购确认单不存在');
     if (pc.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'pending_pm' } });
+    const result = await this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'pending_pm' } });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'pm', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '采购确认审批通知', `${currentUser.displayName} 提交了 ${pc.code}，待您审批`, 'purchase-confirm', id);
+    }
+    return result;
   }
 
   async withdraw(id: number, userId: number, role: string) {
@@ -104,7 +114,14 @@ export class PurchaseConfirmsService {
     if (!pc) throw new NotFoundException('采购确认单不存在');
     if (!['pending_pm', 'pending_leader'].includes(pc.status)) throw new BadRequestException('只能撤回审批中的申请');
     if (pc.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权撤回');
-    return this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'draft' } });
+    const result = await this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'draft' } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    const nextApprover = await this.prisma.user.findFirst({ where: { role: 'pm', isActive: true } });
+    const targetUserId = nextApprover?.id || pc.createdById;
+    if (currentUser) {
+      await this.notifications.notify(targetUserId, 'withdrawn', '采购确认已撤回', `${currentUser.displayName} 撤回了 ${pc.code}`, 'purchase-confirm', id);
+    }
+    return result;
   }
 
   async approvePm(id: number, userId: number) {
@@ -116,7 +133,9 @@ export class PurchaseConfirmsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'purchase-confirm', entityId: id, step: 1, approverId: userId, action: 'approve' },
     });
-    return this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'pending_leader' } });
+    const updateResult = await this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'pending_leader' } });
+    await this.notifications.notify(pc.createdById, 'approved', '采购确认已通过', `您的 ${pc.code} 已通过审批`, 'purchase-confirm', id);
+    return updateResult;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -128,7 +147,9 @@ export class PurchaseConfirmsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'purchase-confirm', entityId: id, step: 2, approverId: userId, action: 'approve' },
     });
-    return this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'approved' } });
+    const result = await this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'approved' } });
+    await this.notifications.notify(pc.createdById, 'approved', '采购确认已通过', `您的 ${pc.code} 已通过审批`, 'purchase-confirm', id);
+    return result;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -140,6 +161,8 @@ export class PurchaseConfirmsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'purchase-confirm', entityId: id, step: 99, approverId: userId, action: 'reject', comment },
     });
-    return this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'rejected' } });
+    const rejectResult = await this.prisma.purchaseConfirm.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(pc.createdById, 'rejected', '采购确认已驳回', `您的 ${pc.code} 已被驳回${comment ? '：' + comment : ''}`, 'purchase-confirm', id);
+    return rejectResult;
   }
 }

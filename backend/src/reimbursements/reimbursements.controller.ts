@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ReimbursementsService } from './reimbursements.service';
 import { CreateReimbursementDto } from './dto/create-reimbursement.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -20,4 +20,5 @@ export class ReimbursementsController {
   @Post(':id/approve-leader') @Roles(UserRole.leader, UserRole.admin) async approveLeader(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.approveLeader(id, user.userId); }
   @Post(':id/approve-finance') @Roles(UserRole.finance, UserRole.admin) async approveFinance(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.approveFinance(id, user.userId); }
   @Post(':id/reject') async reject(@Param('id', ParseIntPipe) id: number, @Body() body: any, @CurrentUser() user: any) { return this.service.reject(id, user.userId, body.comment); }
+  @Delete(':id') async delete(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.delete(id, user.userId, user.role); }
 }

@@ -21,7 +21,10 @@ import { ContractVariationsModule } from './contract-variations/contract-variati
 import { LaborContractsModule } from './labor-contracts/labor-contracts.module';
 import { LaborVisasModule } from './labor-visas/labor-visas.module';
 import { PaymentRequestsModule } from './payment-requests/payment-requests.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ProjectReceivablesModule } from './project-receivables/project-receivables.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -48,6 +51,9 @@ import { ProjectReceivablesModule } from './project-receivables/project-receivab
     LaborVisasModule,
     PaymentRequestsModule,
     ProjectReceivablesModule,
+    NotificationsModule,
+    DashboardModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

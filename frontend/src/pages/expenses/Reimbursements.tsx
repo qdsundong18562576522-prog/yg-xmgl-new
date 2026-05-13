@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Tag, Space, Card, Tabs, message, Modal, Descriptions, Timeline, Form, Select, InputNumber, Input, Checkbox } from 'antd';
-import { PlusOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { reimbursementsApi } from '../../api/expenses';
 import { useAuthStore } from '../../stores/authStore';
 import request from '../../api/request';
@@ -94,6 +94,15 @@ export default function ReimbursementsPage() {
               <Button type="link" size="small" icon={<CloseCircleOutlined />} danger onClick={() => handleAction('reject', record.id)}>驳回</Button>
             </>
           )}
+          {(user?.role === 'admin' || ((record.status === 'draft' || record.status === 'rejected') && record.createdById === user?.id)) && (
+            <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => {
+              Modal.confirm({
+                title: '确认删除',
+                content: `确定要删除该报销申请吗？`,
+                onOk: () => handleAction('delete', record.id),
+              });
+            }}>删除</Button>
+          )}
         </Space>
       ),
     },
@@ -170,7 +179,11 @@ function ReimbursementForm({ open, onClose, onSuccess }: { open: boolean; onClos
   const handleFinish = async (values: any) => {
     setLoading(true);
     try {
-      await reimbursementsApi.create(values);
+      const payload = {
+        ...values,
+        hasInvoice: values.hasInvoice === 'yes',
+      };
+      await reimbursementsApi.create(payload);
       message.success('创建成功');
       onSuccess();
       onClose();

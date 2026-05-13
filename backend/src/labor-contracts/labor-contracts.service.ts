@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateLaborContractDto } from './dto/create-labor-contract.dto';
 import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
 export class LaborContractsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -47,7 +51,13 @@ export class LaborContractsService {
     const lc = await this.prisma.laborContract.findUnique({ where: { id } });
     if (!lc) throw new NotFoundException('劳务合同不存在');
     if (lc.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.laborContract.update({ where: { id }, data: { status: 'pending_pm' } });
+    const result = await this.prisma.laborContract.update({ where: { id }, data: { status: 'pending_pm' } });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'pm', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '劳务合同审批通知', `${currentUser.displayName} 提交了 ${lc.code}，待您审批`, 'labor-contract', id);
+    }
+    return result;
   }
 
   async withdraw(id: number, userId: number, role: string) {
@@ -55,7 +65,14 @@ export class LaborContractsService {
     if (!lc) throw new NotFoundException('劳务合同不存在');
     if (lc.status !== 'pending_pm' && lc.status !== 'pending_leader') throw new BadRequestException('只能撤回审批中的单据');
     if (lc.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权撤回');
-    return this.prisma.laborContract.update({ where: { id }, data: { status: 'draft' } });
+    const result = await this.prisma.laborContract.update({ where: { id }, data: { status: 'draft' } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    const nextApprover = await this.prisma.user.findFirst({ where: { role: 'pm', isActive: true } });
+    const targetUserId = nextApprover?.id || lc.createdById;
+    if (currentUser) {
+      await this.notifications.notify(targetUserId, 'withdrawn', '劳务合同已撤回', `${currentUser.displayName} 撤回了 ${lc.code}`, 'labor-contract', id);
+    }
+    return result;
   }
 
   async approvePm(id: number, userId: number) {
@@ -65,7 +82,9 @@ export class LaborContractsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !['pm', 'admin'].includes(user.role)) throw new ForbiddenException('无权审批');
     await this.prisma.approvalHistory.create({ data: { entityType: 'labor-contract', entityId: id, step: 1, approverId: userId, action: 'approve' } });
-    return this.prisma.laborContract.update({ where: { id }, data: { status: 'pending_leader' } });
+    const pmResult = await this.prisma.laborContract.update({ where: { id }, data: { status: 'pending_leader' } });
+    await this.notifications.notify(lc.createdById, 'approved', '劳务合同已通过', `您的 ${lc.code} 已通过审批`, 'labor-contract', id);
+    return pmResult;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -75,7 +94,9 @@ export class LaborContractsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !['leader', 'admin'].includes(user.role)) throw new ForbiddenException('无权审批');
     await this.prisma.approvalHistory.create({ data: { entityType: 'labor-contract', entityId: id, step: 2, approverId: userId, action: 'approve' } });
-    return this.prisma.laborContract.update({ where: { id }, data: { status: 'approved' } });
+    const leaderResult = await this.prisma.laborContract.update({ where: { id }, data: { status: 'approved' } });
+    await this.notifications.notify(lc.createdById, 'approved', '劳务合同已通过', `您的 ${lc.code} 已通过审批`, 'labor-contract', id);
+    return leaderResult;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -83,6 +104,8 @@ export class LaborContractsService {
     if (!lc) throw new NotFoundException('劳务合同不存在');
     if (!['pending_pm', 'pending_leader'].includes(lc.status)) throw new BadRequestException('状态错误');
     await this.prisma.approvalHistory.create({ data: { entityType: 'labor-contract', entityId: id, step: 99, approverId: userId, action: 'reject', comment } });
-    return this.prisma.laborContract.update({ where: { id }, data: { status: 'rejected' } });
+    const rejectResult = await this.prisma.laborContract.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(lc.createdById, 'rejected', '劳务合同已驳回', `您的 ${lc.code} 已被驳回${comment ? '：' + comment : ''}`, 'labor-contract', id);
+    return rejectResult;
   }
 }

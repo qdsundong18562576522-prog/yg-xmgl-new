@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateVariationDto } from './dto/create-variation.dto';
 
 @Injectable()
 export class ContractVariationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -62,10 +66,16 @@ export class ContractVariationsService {
     const v = await this.prisma.contractVariation.findUnique({ where: { id } });
     if (!v) throw new NotFoundException('工程量变更不存在');
     if (v.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.contractVariation.update({
+    const result = await this.prisma.contractVariation.update({
       where: { id },
       data: { status: 'pending' },
     });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'leader', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '工程量变更审批通知', `${currentUser.displayName} 提交了工程量变更 #${v.id}，待您审批`, 'contract-variation', id);
+    }
+    return result;
   }
 
   async approve(id: number, userId: number) {
@@ -105,10 +115,12 @@ export class ContractVariationsService {
       });
     }
 
-    return this.prisma.contractVariation.update({
+    const approveResult = await this.prisma.contractVariation.update({
       where: { id },
       data: { status: 'approved' },
     });
+    await this.notifications.notify(v.createdById, 'approved', '工程量变更已通过', `您的工程量变更 #${v.id} 已通过审批`, 'contract-variation', id);
+    return approveResult;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -127,9 +139,11 @@ export class ContractVariationsService {
       },
     });
 
-    return this.prisma.contractVariation.update({
+    const rejectResult = await this.prisma.contractVariation.update({
       where: { id },
       data: { status: 'rejected' },
     });
+    await this.notifications.notify(v.createdById, 'rejected', '工程量变更已驳回', `您的工程量变更 #${v.id} 已被驳回${comment ? '：' + comment : ''}`, 'contract-variation', id);
+    return rejectResult;
   }
 }

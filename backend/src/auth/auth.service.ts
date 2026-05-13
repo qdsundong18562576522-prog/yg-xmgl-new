@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -48,5 +48,15 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('用户不存在');
     return user;
+  }
+
+  async changePassword(userId: number, oldPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('用户不存在');
+    const valid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!valid) throw new BadRequestException('原密码错误');
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
+    return { message: '密码修改成功' };
   }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Tag, Space, Card, Tabs, message, Modal, Descriptions, Timeline, Form, Select, Input, InputNumber, DatePicker } from 'antd';
-import { PlusOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, RollbackOutlined, DollarOutlined } from '@ant-design/icons';
+import { PlusOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, RollbackOutlined, DollarOutlined, DeleteOutlined } from '@ant-design/icons';
 import { paymentRequestsApi } from '../../api/finance';
 import { useAuthStore } from '../../stores/authStore';
 import request from '../../api/request';
@@ -98,6 +98,15 @@ export default function PaymentRequestsPage() {
         )}
         {(record.status === 'pending_leader' || record.status === 'pending_finance') && (record.createdById === user?.id || user?.role === 'admin') && (
           <Button type="link" size="small" icon={<RollbackOutlined />} onClick={() => handleAction('withdraw', record.id)}>撤回</Button>
+        )}
+        {(user?.role === 'admin' || ((record.status === 'draft' || record.status === 'rejected') && record.createdById === user?.id)) && (
+          <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => {
+            Modal.confirm({
+              title: '确认删除',
+              content: `确定要删除付款申请 ${record.code} 吗？`,
+              onOk: () => handleAction('delete', record.id),
+            });
+          }}>删除</Button>
         )}
         {canApprove(record.status, user?.role || '') && (
           <>
@@ -403,7 +412,11 @@ function PaymentForm({ open, onClose, onSuccess }: { open: boolean; onClose: () 
             </Form.Item>
             {remainingInfo && (
               <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fff7e6', borderRadius: 4, fontSize: 13 }}>
-                合同总额 ¥{Number(remainingInfo.totalAmount).toLocaleString()} ｜ 已申请付款 ¥{Number(remainingInfo.totalPaid).toLocaleString()} ｜
+                {
+                  remainingInfo.visaAdjustedAmount !== undefined
+                    ? <>原合同 ¥{Number(remainingInfo.originalAmount).toLocaleString()} ｜ 签证调整 ¥{Number(remainingInfo.visaAdjustedAmount - remainingInfo.originalAmount).toLocaleString()} ｜ 调整后总额 <strong>¥{Number(remainingInfo.totalAmount).toLocaleString()}</strong></>
+                    : <>合同总额 ¥{Number(remainingInfo.totalAmount).toLocaleString()}</>
+                } ｜ 已申请付款 ¥{Number(remainingInfo.totalPaid).toLocaleString()} ｜
                 <span style={{ color: '#1890ff', fontWeight: 600 }}> 剩余可申请 ¥{Number(remainingInfo.remaining).toLocaleString()}</span>
               </div>
             )}

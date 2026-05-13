@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateStockOutDto } from './dto/create-stock-out.dto';
 
 @Injectable()
 export class StockOutService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -51,7 +55,7 @@ export class StockOutService {
       }),
     );
 
-    return this.prisma.stockOut.create({
+    const record = await this.prisma.stockOut.create({
       data: {
         projectId: dto.projectId,
         reasonType: dto.reasonType,
@@ -62,6 +66,14 @@ export class StockOutService {
       },
       include: { items: true, project: { select: { id: true, name: true } } },
     });
+
+    const approver = await this.prisma.user.findFirst({ where: { role: 'leader', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '转库审批通知', `${currentUser.displayName} 提交了转库申请 #${record.id}，待您审批`, 'stock-out', record.id);
+    }
+
+    return record;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -70,7 +82,9 @@ export class StockOutService {
     if (so.status !== 'pending_leader') throw new BadRequestException('状态错误');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !['leader', 'admin'].includes(user.role)) throw new ForbiddenException('无权审批');
-    return this.prisma.stockOut.update({ where: { id }, data: { status: 'pending_purchaser' } });
+    const leaderResult = await this.prisma.stockOut.update({ where: { id }, data: { status: 'pending_purchaser' } });
+    await this.notifications.notify(so.createdById, 'approved', '转库已通过', `您的转库申请 #${so.id} 已通过审批`, 'stock-out', id);
+    return leaderResult;
   }
 
   async approvePurchaser(id: number, userId: number) {
@@ -119,7 +133,9 @@ export class StockOutService {
       }
     }
 
-    return this.prisma.stockOut.update({ where: { id }, data: { status: 'approved' } });
+    const purchaserResult = await this.prisma.stockOut.update({ where: { id }, data: { status: 'approved' } });
+    await this.notifications.notify(so.createdById, 'approved', '转库已通过', `您的转库申请 #${so.id} 已通过审批`, 'stock-out', id);
+    return purchaserResult;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -128,6 +144,8 @@ export class StockOutService {
     if (!['pending_leader', 'pending_purchaser'].includes(so.status)) throw new BadRequestException('状态错误');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !['leader', 'purchaser', 'admin'].includes(user.role)) throw new ForbiddenException('无权驳回');
-    return this.prisma.stockOut.update({ where: { id }, data: { status: 'rejected' } });
+    const rejectResult = await this.prisma.stockOut.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(so.createdById, 'rejected', '转库已驳回', `您的转库申请 #${so.id} 已被驳回${comment ? '：' + comment : ''}`, 'stock-out', id);
+    return rejectResult;
   }
 }

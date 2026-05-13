@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { generateProjectCode } from './utils/code-generator';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(userId: number, role: string) {
     const where: any = {};
@@ -187,10 +191,18 @@ export class ProjectsService {
       throw new BadRequestException('只能提交草稿或已驳回的项目');
     }
 
-    return this.prisma.project.update({
+    const result = await this.prisma.project.update({
       where: { id },
       data: { status: 'pending' },
     });
+
+    const approver = await this.prisma.user.findFirst({ where: { role: 'leader', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '项目审批通知', `${currentUser.displayName} 提交了 ${project.code}，待您审批`, 'project', id);
+    }
+
+    return result;
   }
 
   async approve(id: number, userId: number) {
@@ -213,10 +225,14 @@ export class ProjectsService {
       },
     });
 
-    return this.prisma.project.update({
+    const result = await this.prisma.project.update({
       where: { id },
       data: { status: 'approved' },
     });
+
+    await this.notifications.notify(project.salesId, 'approved', '项目已通过', `您的 ${project.code} 已通过审批`, 'project', id);
+
+    return result;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -240,10 +256,14 @@ export class ProjectsService {
       },
     });
 
-    return this.prisma.project.update({
+    const result = await this.prisma.project.update({
       where: { id },
       data: { status: 'rejected' },
     });
+
+    await this.notifications.notify(project.salesId, 'rejected', '项目已驳回', `您的 ${project.code} 已被驳回${comment ? '：' + comment : ''}`, 'project', id);
+
+    return result;
   }
 
   async delete(id: number, userId: number, role: string) {
@@ -257,6 +277,100 @@ export class ProjectsService {
     await this.prisma.projectMember.deleteMany({ where: { projectId: id } });
     await this.prisma.project.delete({ where: { id } });
     return { id, deleted: true };
+  }
+
+  async getLedgerList() {
+    const projects = await this.prisma.project.findMany({
+      where: { status: 'approved' },
+      include: {
+        projectManager: { select: { displayName: true } },
+        contractVariations: {
+          where: { status: 'approved' },
+          include: { items: true },
+        },
+        laborContracts: {
+          where: { status: 'approved' },
+          include: { visas: { where: { status: 'approved' }, select: { amountChange: true } } },
+        },
+        stockIns: { include: { items: true } },
+        stockOuts: {
+          where: { status: 'approved' },
+          include: { items: true },
+        },
+        costAdjustmentsSource: { select: { amount: true } },
+        costAdjustmentsTarget: { select: { amount: true } },
+        reimbursements: { where: { status: 'approved' }, select: { amount: true } },
+        expenseRequests: { where: { status: 'approved' }, select: { amount: true } },
+        receivables: { select: { amount: true } },
+        paymentRequests: {
+          where: { status: 'approved' },
+          include: { confirmations: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return projects.map((p) => {
+      const contractAmount = Number(p.contractAmount);
+      const variationAmount = p.contractVariations.reduce(
+        (sum, v) => sum + v.items.reduce((s, i) => s + Number(i.quantity) * Number(i.contractPrice), 0),
+        0,
+      );
+      const adjustedAmount = contractAmount + variationAmount;
+      const totalReceivable = p.receivables.reduce((s, r) => s + Number(r.amount), 0);
+      const totalPaidOut = p.paymentRequests.reduce(
+        (s, pr) => s + pr.confirmations.reduce((s2, c) => s2 + Number(c.amount), 0),
+        0,
+      );
+
+      // Procurement cost = stockIn + costAdjIn - costAdjOut (stockOut is just physical relocation)
+      const stockInTotal = p.stockIns.reduce((s, si) => s + si.items.reduce((s2, i) => s2 + Number(i.quantity) * Number(i.costPrice), 0), 0);
+      const costAdjInTotal = p.costAdjustmentsTarget.reduce((s, ca) => s + Number(ca.amount), 0);
+      const costAdjOutTotal = p.costAdjustmentsSource.reduce((s, ca) => s + Number(ca.amount), 0);
+      const netProcurementCost = stockInTotal + costAdjInTotal - costAdjOutTotal;
+
+      // Labor costs
+      let laborCostTotal = 0;
+      let laborVisaTotal = 0;
+      for (const lc of p.laborContracts) {
+        laborCostTotal += Number(lc.amount);
+        for (const v of lc.visas) {
+          laborVisaTotal += Number(v.amountChange);
+        }
+      }
+      const totalLaborCost = laborCostTotal + laborVisaTotal;
+
+      // Other costs
+      const otherCostTotal = p.reimbursements.reduce((s, r) => s + Number(r.amount), 0)
+                          + p.expenseRequests.reduce((s, e) => s + Number(e.amount), 0);
+
+      // Expected settlement = contract + variations (labor is cost, not revenue)
+      const expectedSettlement = contractAmount + variationAmount;
+
+      // Total cost = procurement + labor + other
+      const totalCost = netProcurementCost + totalLaborCost + otherCostTotal;
+
+      const profit = expectedSettlement - totalCost;
+      const profitRate = expectedSettlement > 0 ? Math.round((profit / expectedSettlement) * 10000) / 100 : 0;
+
+      return {
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        type: p.type === 'integration' ? '集成' : '供货',
+        pm: p.projectManager.displayName,
+        contractAmount,
+        variationAmount,
+        adjustedAmount,
+        expectedSettlement,
+        totalReceivable,
+        receivableRate: expectedSettlement > 0 ? Math.round((totalReceivable / expectedSettlement) * 10000) / 100 : 0,
+        totalPaidOut,
+        totalCost,
+        profit,
+        profitRate,
+      };
+    });
   }
 
   async getLedger(id: number) {
@@ -328,8 +442,8 @@ export class ProjectsService {
     });
     const costAdjOutTotal = costAdjOut.reduce((s, c) => s + Number(c.amount), 0);
 
-    // 净采购成本 = 入库 - 转出公司库存 + 其他项目转入 - 转给其他项目
-    const netProcurementCost = stockInTotal - stockOutTotal + costAdjInTotal - costAdjOutTotal;
+    // 净采购成本 = 入库 + 其他项目转入 - 转给其他项目（转出公司库存是物理移库，不减成本）
+    const netProcurementCost = stockInTotal + costAdjInTotal - costAdjOutTotal;
 
     // 劳务合同
     const laborContracts = await this.prisma.laborContract.findMany({
@@ -402,8 +516,8 @@ export class ProjectsService {
     }));
     const totalReceivable = receivables.reduce((sum, r) => sum + Number(r.amount), 0);
 
-    // 预期结算额 = 合同金额 + 工程量变更 + 劳务签证变更
-    const expectedSettlement = contractAmount + variationAmount + laborVisaTotal;
+    // 预期结算额 = 合同金额 + 工程量变更（劳务签证是成本调整，不计入结算额）
+    const expectedSettlement = contractAmount + variationAmount;
 
     // 总成本 = 净采购成本 + 总劳务成本 + 其他成本
     const totalCost = netProcurementCost + totalLaborCost + otherCostTotal;

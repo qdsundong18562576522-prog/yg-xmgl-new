@@ -8,6 +8,7 @@ export const expenseRequestsApi = {
   approveLeader: (id: number) => request.post(`/expense-requests/${id}/approve-leader`),
   approveFinance: (id: number) => request.post(`/expense-requests/${id}/approve-finance`),
   reject: (id: number, comment?: string) => request.post(`/expense-requests/${id}/reject`, { comment }),
+  delete: (id: number) => request.delete(`/expense-requests/${id}`),
 };
 
 export const reimbursementsApi = {
@@ -19,6 +20,7 @@ export const reimbursementsApi = {
   approveLeader: (id: number) => request.post(`/reimbursements/${id}/approve-leader`),
   approveFinance: (id: number) => request.post(`/reimbursements/${id}/approve-finance`),
   reject: (id: number, comment?: string) => request.post(`/reimbursements/${id}/reject`, { comment }),
+  delete: (id: number) => request.delete(`/reimbursements/${id}`),
 };
 
 export const contractVariationsApi = {

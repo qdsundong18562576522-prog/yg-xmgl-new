@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateRequisitionDto } from './dto/create-requisition.dto';
 
 @Injectable()
 export class MaterialRequisitionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -72,7 +76,13 @@ export class MaterialRequisitionsService {
     const req = await this.prisma.materialRequisition.findUnique({ where: { id } });
     if (!req) throw new NotFoundException('领用单不存在');
     if (req.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.materialRequisition.update({ where: { id }, data: { status: 'pending_purchaser' } });
+    const result = await this.prisma.materialRequisition.update({ where: { id }, data: { status: 'pending_purchaser' } });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'purchaser', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '材料领用审批通知', `${currentUser.displayName} 提交了材料领用申请 #${req.id}，待您审批`, 'material-requisition', id);
+    }
+    return result;
   }
 
   async approvePurchaser(id: number, userId: number) {
@@ -87,7 +97,9 @@ export class MaterialRequisitionsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'material-requisition', entityId: id, step: 1, approverId: userId, action: 'approve' },
     });
-    return this.prisma.materialRequisition.update({ where: { id }, data: { status: 'pending_leader' } });
+    const purchResult = await this.prisma.materialRequisition.update({ where: { id }, data: { status: 'pending_leader' } });
+    await this.notifications.notify(req.createdById, 'approved', '材料领用已通过', `您的材料领用申请 #${req.id} 已通过审批`, 'material-requisition', id);
+    return purchResult;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -162,7 +174,9 @@ export class MaterialRequisitionsService {
       }
     }
 
-    return this.prisma.materialRequisition.update({ where: { id }, data: { status: 'approved' } });
+    const leaderResult = await this.prisma.materialRequisition.update({ where: { id }, data: { status: 'approved' } });
+    await this.notifications.notify(req.createdById, 'approved', '材料领用已通过', `您的材料领用申请 #${req.id} 已通过审批`, 'material-requisition', id);
+    return leaderResult;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -174,6 +188,8 @@ export class MaterialRequisitionsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'material-requisition', entityId: id, step: 99, approverId: userId, action: 'reject', comment },
     });
-    return this.prisma.materialRequisition.update({ where: { id }, data: { status: 'rejected' } });
+    const rejectResult = await this.prisma.materialRequisition.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(req.createdById, 'rejected', '材料领用已驳回', `您的材料领用申请 #${req.id} 已被驳回${comment ? '：' + comment : ''}`, 'material-requisition', id);
+    return rejectResult;
   }
 }

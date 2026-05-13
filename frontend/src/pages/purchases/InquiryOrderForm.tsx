@@ -87,6 +87,13 @@ export default function InquiryOrderForm({ open, onClose, onSuccess, editData }:
     updateGroup(groupIdx, { items: newItems });
   };
 
+  const updateQuantity = (groupIdx: number, itemIdx: number, value: number | null) => {
+    const group = groups[groupIdx];
+    const newItems = [...group.items];
+    newItems[itemIdx] = { ...newItems[itemIdx], quantity: value || 0 };
+    updateGroup(groupIdx, { items: newItems });
+  };
+
   const updateExtraItem = (groupIdx: number, itemIdx: number, field: 'name' | 'amount', value: string | number) => {
     const group = groups[groupIdx];
     const newExtras = [...group.extraItems];
@@ -174,6 +181,7 @@ export default function InquiryOrderForm({ open, onClose, onSuccess, editData }:
           supplierName: g.supplierName,
           itemIds: g.items.map((i) => i.prItemId),
           purchasePrices: g.items.map((i) => i.purchasePrice),
+          quantities: g.items.map((i) => i.quantity),
           extraItems: g.extraItems.filter((e) => e.name).map((e) => ({ name: e.name, amount: e.amount })),
           remark: g.remark || undefined,
         })),
@@ -271,7 +279,20 @@ export default function InquiryOrderForm({ open, onClose, onSuccess, editData }:
                     { title: '品牌', dataIndex: 'brand' },
                     { title: '规格', dataIndex: 'spec' },
                     { title: '单位', dataIndex: 'unit', width: 50 },
-                    { title: '数量', dataIndex: 'quantity', width: 60 },
+                    {
+                      title: '数量', width: 70,
+                      render: (_: any, record: any) => {
+                        const itemIdx = group.items.findIndex((i) => i.prItemId === record.prItemId);
+                        return (
+                          <InputNumber
+                            min={0} style={{ width: '100%' }}
+                            value={group.items[itemIdx]?.quantity}
+                            onChange={(v) => updateQuantity(gIdx, itemIdx, v || 0)}
+                            placeholder="数量"
+                          />
+                        );
+                      },
+                    },
                     {
                       title: '采购单价', width: 130,
                       render: (_: any, record: any) => {
@@ -288,9 +309,12 @@ export default function InquiryOrderForm({ open, onClose, onSuccess, editData }:
                     },
                     {
                       title: '合价', width: 100,
-                      render: (_: any, record: any) => (
-                        <span>¥{(record.quantity * (record.purchasePrice || 0)).toLocaleString()}</span>
-                      ),
+                      render: (_: any, record: any) => {
+                        const itemIdx = group.items.findIndex((i) => i.prItemId === record.prItemId);
+                        const q = group.items[itemIdx]?.quantity || 0;
+                        const p = group.items[itemIdx]?.purchasePrice || 0;
+                        return <span>¥{(q * p).toLocaleString()}</span>;
+                      },
                     },
                   ]}
                 />

@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateInquiryOrderDto, UpdateInquiryOrderDto } from './dto/create-inquiry-order.dto';
 import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
 export class InquiryOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -51,13 +55,14 @@ export class InquiryOrdersService {
 
       prItems.forEach((item, idx) => {
         const pp = group.purchasePrices?.[idx] ?? 0;
+        const qty = group.quantities?.[idx] ?? Number(item.quantity);
         allItems.push({
           materialLibId: item.materialLibId,
           name: item.name, brand: item.brand, spec: item.spec, unit: item.unit,
-          quantity: Number(item.quantity),
+          quantity: qty,
           contractPrice: Number(item.contractPrice),
           purchasePrice: pp,
-          totalPrice: pp * Number(item.quantity),
+          totalPrice: pp * qty,
           isExtra: false,
           groupLabel: group.label,
           supplierName: group.supplierName,
@@ -158,7 +163,13 @@ export class InquiryOrdersService {
     const io = await this.prisma.inquiryOrder.findUnique({ where: { id } });
     if (!io) throw new NotFoundException('询价单不存在');
     if (io.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'pending_pm' } });
+    const result = await this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'pending_pm' } });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'pm', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '采购询价审批通知', `${currentUser.displayName} 提交了 ${io.code}，待您审批`, 'inquiry-order', id);
+    }
+    return result;
   }
 
   async withdraw(id: number, userId: number, role: string) {
@@ -166,7 +177,14 @@ export class InquiryOrdersService {
     if (!io) throw new NotFoundException('询价单不存在');
     if (!['pending_pm', 'pending_leader'].includes(io.status)) throw new BadRequestException('只能撤回审批中的申请');
     if (io.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权撤回');
-    return this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'draft' } });
+    const result = await this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'draft' } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    const nextApprover = await this.prisma.user.findFirst({ where: { role: 'pm', isActive: true } });
+    const targetUserId = nextApprover?.id || io.createdById;
+    if (currentUser) {
+      await this.notifications.notify(targetUserId, 'withdrawn', '采购询价已撤回', `${currentUser.displayName} 撤回了 ${io.code}`, 'inquiry-order', id);
+    }
+    return result;
   }
 
   async approvePm(id: number, userId: number) {
@@ -178,7 +196,9 @@ export class InquiryOrdersService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'inquiry-order', entityId: id, step: 1, approverId: userId, action: 'approve' },
     });
-    return this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'pending_leader' } });
+    const result = await this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'pending_leader' } });
+    await this.notifications.notify(io.createdById, 'approved', '采购询价已通过', `您的 ${io.code} 已通过审批`, 'inquiry-order', id);
+    return result;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -190,7 +210,9 @@ export class InquiryOrdersService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'inquiry-order', entityId: id, step: 2, approverId: userId, action: 'approve' },
     });
-    return this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'approved' } });
+    const result = await this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'approved' } });
+    await this.notifications.notify(io.createdById, 'approved', '采购询价已通过', `您的 ${io.code} 已通过审批`, 'inquiry-order', id);
+    return result;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -202,6 +224,8 @@ export class InquiryOrdersService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'inquiry-order', entityId: id, step: 99, approverId: userId, action: 'reject', comment },
     });
-    return this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'rejected' } });
+    const result = await this.prisma.inquiryOrder.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(io.createdById, 'rejected', '采购询价已驳回', `您的 ${io.code} 已被驳回${comment ? '：' + comment : ''}`, 'inquiry-order', id);
+    return result;
   }
 }

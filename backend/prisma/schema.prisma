@@ -898,3 +898,33 @@ model ProjectInventoryLog {
 
   @@map("project_inventory_logs")
 }
+
+// ====== 28. 系统配置 ======
+
+model SystemConfig {
+  id          Int      @id @default(autoincrement())
+  configKey   String   @unique @map("config_key") @db.VarChar(100)
+  configValue String?  @map("config_value") @db.Text
+  description String?  @db.VarChar(255)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedBy   Int?     @map("updated_by")
+
+  @@map("system_configs")
+}
+
+// ====== 29. 数据字典 ======
+
+model Dictionary {
+  id        Int      @id @default(autoincrement())
+  dictType  String   @map("dict_type") @db.VarChar(50)
+  dictLabel String   @map("dict_label") @db.VarChar(100)
+  dictValue String   @map("dict_value") @db.VarChar(100)
+  sortOrder Int      @default(0) @map("sort_order")
+  status    Boolean  @default(true)
+  remark    String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([dictType, dictValue])
+  @@map("dictionaries")
+}

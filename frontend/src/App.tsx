@@ -22,6 +22,8 @@ import ContractVariationsPage from './pages/expenses/ContractVariations';
 import LaborContractsPage from './pages/labor/LaborContracts';
 import LaborVisasPage from './pages/labor/LaborVisas';
 import ProjectLedgerPage from './pages/projects/ProjectLedger';
+import ProjectLedgerListPage from './pages/projects/ProjectLedgerList';
+import SettingsPage from './pages/settings';
 import PaymentRequestsPage from './pages/finance/PaymentRequests';
 import ProjectReceivablesPage from './pages/finance/ProjectReceivables';
 import { useAuthStore } from './stores/authStore';
@@ -64,12 +66,14 @@ export default function App() {
                 <Route path="expenses/requests" element={<ExpenseRequestsPage />} />
                 <Route path="expenses/reimbursements" element={<ReimbursementsPage />} />
                 <Route path="projects/variations" element={<ContractVariationsPage />} />
+                <Route path="projects/ledger" element={<ProjectLedgerListPage />} />
                 <Route path="projects/ledger/:id" element={<ProjectLedgerPage />} />
                 <Route path="labor/contracts" element={<LaborContractsPage />} />
                 <Route path="labor/visas" element={<LaborVisasPage />} />
                 <Route path="finance/payment-requests" element={<PaymentRequestsPage />} />
                 <Route path="finance/receivables" element={<ProjectReceivablesPage />} />
                 <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
+                <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>
           </BrowserRouter>

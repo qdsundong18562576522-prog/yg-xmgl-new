@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreatePaymentRequestDto } from './dto/create-payment-request.dto';
 import { generateFormCode } from '../common/code-generator';
 
 @Injectable()
 export class PaymentRequestsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(projectId?: number) {
     const where: any = {};
@@ -65,7 +69,13 @@ export class PaymentRequestsService {
     const pr = await this.prisma.paymentRequest.findUnique({ where: { id } });
     if (!pr) throw new NotFoundException('付款申请不存在');
     if (pr.status !== 'draft') throw new BadRequestException('只能提交草稿');
-    return this.prisma.paymentRequest.update({ where: { id }, data: { status: 'pending_leader' } });
+    const result = await this.prisma.paymentRequest.update({ where: { id }, data: { status: 'pending_leader' } });
+    const approver = await this.prisma.user.findFirst({ where: { role: 'leader', isActive: true } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (approver && currentUser) {
+      await this.notifications.notify(approver.id, 'approval_required', '付款申请审批通知', `${currentUser.displayName} 提交了 ${pr.code}，待您审批`, 'payment-request', id);
+    }
+    return result;
   }
 
   async withdraw(id: number, userId: number, role: string) {
@@ -73,7 +83,14 @@ export class PaymentRequestsService {
     if (!pr) throw new NotFoundException('付款申请不存在');
     if (pr.status !== 'pending_leader' && pr.status !== 'pending_finance') throw new BadRequestException('只能撤回审批中的单据');
     if (pr.createdById !== userId && role !== 'admin') throw new ForbiddenException('无权撤回');
-    return this.prisma.paymentRequest.update({ where: { id }, data: { status: 'draft' } });
+    const withdrawResult = await this.prisma.paymentRequest.update({ where: { id }, data: { status: 'draft' } });
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    const nextApprover = await this.prisma.user.findFirst({ where: { role: 'leader', isActive: true } });
+    const targetUserId = nextApprover?.id || pr.createdById;
+    if (currentUser) {
+      await this.notifications.notify(targetUserId, 'withdrawn', '付款申请已撤回', `${currentUser.displayName} 撤回了 ${pr.code}`, 'payment-request', id);
+    }
+    return withdrawResult;
   }
 
   async approveLeader(id: number, userId: number) {
@@ -85,7 +102,9 @@ export class PaymentRequestsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'payment-request', entityId: id, step: 1, approverId: userId, action: 'approve' },
     });
-    return this.prisma.paymentRequest.update({ where: { id }, data: { status: 'pending_finance' } });
+    const leaderRes = await this.prisma.paymentRequest.update({ where: { id }, data: { status: 'pending_finance' } });
+    await this.notifications.notify(pr.createdById, 'approved', '付款申请已通过', `您的 ${pr.code} 已通过审批`, 'payment-request', id);
+    return leaderRes;
   }
 
   async approveFinance(id: number, userId: number) {
@@ -97,7 +116,9 @@ export class PaymentRequestsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'payment-request', entityId: id, step: 2, approverId: userId, action: 'approve' },
     });
-    return this.prisma.paymentRequest.update({ where: { id }, data: { status: 'approved' } });
+    const financeRes = await this.prisma.paymentRequest.update({ where: { id }, data: { status: 'approved' } });
+    await this.notifications.notify(pr.createdById, 'approved', '付款申请已通过', `您的 ${pr.code} 已通过审批`, 'payment-request', id);
+    return financeRes;
   }
 
   async reject(id: number, userId: number, comment?: string) {
@@ -107,7 +128,9 @@ export class PaymentRequestsService {
     await this.prisma.approvalHistory.create({
       data: { entityType: 'payment-request', entityId: id, step: 99, approverId: userId, action: 'reject', comment },
     });
-    return this.prisma.paymentRequest.update({ where: { id }, data: { status: 'rejected' } });
+    const rejectResult = await this.prisma.paymentRequest.update({ where: { id }, data: { status: 'rejected' } });
+    await this.notifications.notify(pr.createdById, 'rejected', '付款申请已驳回', `您的 ${pr.code} 已被驳回${comment ? '：' + comment : ''}`, 'payment-request', id);
+    return rejectResult;
   }
 
   async getRemainingAmount(contractType: string, contractId: number): Promise<number> {
@@ -123,6 +146,8 @@ export class PaymentRequestsService {
 
     let totalAmount = 0;
     let contractItems: { label: string; total: number; paid: number; remaining: number }[] = [];
+    let originalAmount = 0;
+    let visaAdjustedAmount = 0;
 
     if (contractType === 'purchase_confirm') {
       const confirm = await this.prisma.purchaseConfirm.findUnique({ where: { id: contractId } });
@@ -161,12 +186,22 @@ export class PaymentRequestsService {
         return { label, total: amount, paid, remaining: Math.max(0, amount - paid) };
       });
     } else if (contractType === 'labor_contract') {
-      const lc = await this.prisma.laborContract.findUnique({ where: { id: contractId } });
-      totalAmount = Number(lc?.amount || 0);
+      const lc = await this.prisma.laborContract.findUnique({
+        where: { id: contractId },
+        include: { visas: { where: { status: 'approved' }, select: { amountChange: true } } },
+      });
+      const originalAmount = Number(lc?.amount || 0);
+      const visaAdjustedAmount = originalAmount + (lc?.visas || []).reduce((sum, v) => sum + Number(v.amountChange), 0);
+      totalAmount = visaAdjustedAmount;
     }
 
     const totalPaid = all.reduce((sum, r) => sum + Number(r.amount), 0);
-    return { totalAmount, totalPaid, remaining: Math.max(0, totalAmount - totalPaid), contractItems };
+    const result: any = { totalAmount, totalPaid, remaining: Math.max(0, totalAmount - totalPaid), contractItems };
+    if (contractType === 'labor_contract') {
+      result.originalAmount = originalAmount;
+      result.visaAdjustedAmount = visaAdjustedAmount;
+    }
+    return result;
   }
 
   async confirmPay(id: number, userId: number, dto: { amount?: number; paymentTime?: string }) {
@@ -181,12 +216,25 @@ export class PaymentRequestsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !['finance', 'admin'].includes(user.role)) throw new ForbiddenException('仅财务可确认付款');
 
-    return this.prisma.paymentConfirmation.create({
+    const confirmResult = await this.prisma.paymentConfirmation.create({
       data: {
         paymentRequestId: id,
         amount: dto.amount || pr.amount,
         paymentTime: dto.paymentTime ? new Date(dto.paymentTime) : new Date(),
       },
     });
+    await this.notifications.notify(pr.createdById, 'payment_confirmed', '付款已确认', `您的 ${pr.code} 已确认付款`, 'payment-request', id);
+    return confirmResult;
+  }
+
+  async delete(id: number, userId: number, role: string) {
+    const pr = await this.prisma.paymentRequest.findUnique({ where: { id } });
+    if (!pr) throw new NotFoundException('付款申请不存在');
+    if (role !== 'admin' && pr.createdById !== userId) throw new ForbiddenException('无权删除');
+    if (role !== 'admin' && !['draft', 'rejected'].includes(pr.status)) throw new BadRequestException('只能删除草稿或已驳回的申请');
+
+    await this.prisma.paymentConfirmation.deleteMany({ where: { paymentRequestId: id } });
+    await this.prisma.paymentRequest.delete({ where: { id } });
+    return { id, deleted: true };
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { PaymentRequestsService } from './payment-requests.service';
 import { CreatePaymentRequestDto } from './dto/create-payment-request.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -21,4 +21,5 @@ export class PaymentRequestsController {
   @Post(':id/approve-finance') @Roles(UserRole.finance, UserRole.admin) async approveFinance(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.approveFinance(id, user.userId); }
   @Post(':id/reject') async reject(@Param('id', ParseIntPipe) id: number, @Body() body: any, @CurrentUser() user: any) { return this.service.reject(id, user.userId, body.comment); }
   @Post(':id/confirm-pay') async confirmPay(@Param('id', ParseIntPipe) id: number, @Body() body: any, @CurrentUser() user: any) { return this.service.confirmPay(id, user.userId, body); }
+  @Delete(':id') async delete(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) { return this.service.delete(id, user.userId, user.role); }
 }

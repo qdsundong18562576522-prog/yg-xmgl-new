@@ -10,10 +10,12 @@ export const paymentRequestsApi = {
   approveFinance: (id: number) => request.post(`/payment-requests/${id}/approve-finance`),
   reject: (id: number, comment?: string) => request.post(`/payment-requests/${id}/reject`, { comment }),
   confirmPay: (id: number, data?: any) => request.post(`/payment-requests/${id}/confirm-pay`, data || {}),
+  delete: (id: number) => request.delete(`/payment-requests/${id}`),
 };
 
 export const projectReceivablesApi = {
   findAll: (projectId?: number) => request.get('/project-receivables', { params: { projectId: projectId || undefined } }),
   findOne: (id: number) => request.get(`/project-receivables/${id}`),
   create: (data: any) => request.post('/project-receivables', data),
+  delete: (id: number) => request.delete(`/project-receivables/${id}`),
 };

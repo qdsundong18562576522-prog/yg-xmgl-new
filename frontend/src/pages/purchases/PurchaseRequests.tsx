@@ -54,11 +54,6 @@ export default function PurchaseRequestsPage() {
     catch (err: any) { message.error(err?.response?.data?.message || '撤回失败'); }
   };
 
-  const handleConfirm = async (id: number) => {
-    try { await purchaseRequestsApi.confirm(id); message.success('已确认收到'); fetch(); }
-    catch (err: any) { message.error(err?.response?.data?.message || '失败'); }
-  };
-
   const handleDelete = async (id: number) => {
     try { await purchaseRequestsApi.delete(id); message.success('已删除'); fetch(); }
     catch (err: any) { message.error(err?.response?.data?.message || '删除失败'); }

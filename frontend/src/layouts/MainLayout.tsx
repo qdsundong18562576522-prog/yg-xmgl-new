@@ -18,9 +18,11 @@ import {
   CheckCircleOutlined,
   CarryOutOutlined,
   SendOutlined,
+  FundOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import NotificationBell from '../components/NotificationBell';
 
 const { Header, Sider, Content } = Layout;
 
@@ -29,6 +31,7 @@ const menuItems = [
   { key: 'projects', icon: <ProjectOutlined />, label: '项目管理', children: [
       { key: '/projects', icon: <ProjectOutlined />, label: '项目立项' },
       { key: '/projects/variations', icon: <FormOutlined />, label: '工程量变更' },
+      { key: '/projects/ledger', icon: <FundOutlined />, label: '项目台账' },
     ] },
   {
     key: 'purchases', icon: <ShoppingCartOutlined />, label: '采购管理',
@@ -104,12 +107,15 @@ export default function MainLayout() {
       <Layout>
         <Header style={{ padding: '0 24px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
           <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
-          <Dropdown menu={userMenu} placement="bottomRight">
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar icon={<UserOutlined />} />
-              <span>{user?.displayName}</span>
-            </div>
-          </Dropdown>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <NotificationBell />
+            <Dropdown menu={userMenu} placement="bottomRight">
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} />
+                <span>{user?.displayName}</span>
+              </div>
+            </Dropdown>
+          </div>
         </Header>
         <Content style={{ margin: 24, minHeight: 280 }}>
           <Outlet />
