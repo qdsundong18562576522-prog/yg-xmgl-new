@@ -110,6 +110,9 @@ model Project {
   costAdjustmentsTarget CostAdjustment[]     @relation("costTarget")
   members            ProjectMember[]
 
+  @@index([status])
+  @@index([projectManagerId])
+  @@index([createdAt])
   @@map("projects")
 }
 
@@ -176,6 +179,9 @@ model PurchaseRequest {
   items     PurchaseRequestItem[]
   inquiry   InquiryOrder?
 
+  @@index([status])
+  @@index([projectId])
+  @@index([createdById])
   @@map("purchase_requests")
 }
 
@@ -224,6 +230,8 @@ model InquiryOrder {
   items           InquiryItem[]
   purchaseConfirm PurchaseConfirm?
 
+  @@index([status])
+  @@index([prId])
   @@map("inquiry_orders")
 }
 
@@ -279,6 +287,8 @@ model PurchaseConfirm {
   items         PurchaseConfirmItem[]
   deliveryNotices DeliveryNotice[]
 
+  @@index([status])
+  @@index([inquiryId])
   @@map("purchase_confirmations")
 }
 
@@ -827,6 +837,8 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, isRead])
+  @@index([userId])
+  @@index([createdAt])
   @@map("notifications")
 }
 
@@ -882,6 +894,8 @@ model ApprovalHistory {
   approver User @relation(fields: [approverId], references: [id])
 
   @@index([entityType, entityId])
+  @@index([entityType])
+  @@index([entityId])
   @@map("approval_history")
 }
 

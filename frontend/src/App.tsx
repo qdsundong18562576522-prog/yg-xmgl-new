@@ -26,6 +26,11 @@ import ProjectLedgerListPage from './pages/projects/ProjectLedgerList';
 import SettingsPage from './pages/settings';
 import PaymentRequestsPage from './pages/finance/PaymentRequests';
 import ProjectReceivablesPage from './pages/finance/ProjectReceivables';
+import MobileLayout from './pages/mobile/MobileLayout';
+import MobileDashboard from './pages/mobile/MobileDashboard';
+import MobileApprovals from './pages/mobile/MobileApprovals';
+import MobileNotifications from './pages/mobile/MobileNotifications';
+import MobileProfile from './pages/mobile/MobileProfile';
 import { useAuthStore } from './stores/authStore';
 
 const queryClient = new QueryClient();
@@ -74,6 +79,13 @@ export default function App() {
                 <Route path="finance/receivables" element={<ProjectReceivablesPage />} />
                 <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                 <Route path="settings" element={<SettingsPage />} />
+              </Route>
+              <Route path="/m" element={<PrivateRoute><MobileLayout /></PrivateRoute>}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<MobileDashboard />} />
+                <Route path="approvals" element={<MobileApprovals />} />
+                <Route path="notifications" element={<MobileNotifications />} />
+                <Route path="profile" element={<MobileProfile />} />
               </Route>
             </Routes>
           </BrowserRouter>

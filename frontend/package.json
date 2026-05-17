@@ -15,10 +15,11 @@
     "@tanstack/react-query": "^5.100.9",
     "antd": "^6.3.7",
     "axios": "^1.16.0",
+    "exceljs": "^4.4.0",
+    "playwright": "^1.60.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.15.0",
-    "xlsx": "^0.18.5",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
